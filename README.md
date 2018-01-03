@@ -9,7 +9,7 @@ In the coming weeks, I will be making changes to the code to make it more access
 
 Goals for the month of January:  
 -Provide a full example using publicly available data  
--Resolve discrepancies with the inverse variance map and the current method for creating the sigma image
+-Resolve discrepancies with the inverse variance map and the current method for creating the sigma image  
 -Consider eliminating the dependency of pyraf in favor of astropy modules  
 -Consider simplifying/revising/automating the refitting process  
 
