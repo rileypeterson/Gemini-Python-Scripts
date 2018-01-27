@@ -15,6 +15,8 @@ I arbitrarily selected the following cropped area:
 
 x: (19100,21100); y: (4600,6600)
 
+Here is what the cropped drizzled image looks like:
+![example](https://user-images.githubusercontent.com/29719483/35466159-395cdad8-02b6-11e8-9c1d-38c1d7c50b5e.png)
 
 
 Once I've cropped these images, I'm going to try and create a model PSF from stars in the image...hopefully there are some...  
