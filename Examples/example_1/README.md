@@ -11,5 +11,11 @@ The CANDELS overview/data reference papers:
 • Koekemoer et al., 2011, ApJS, CANDELS HST Imaging Data Products, http://arxiv.org/abs/1105.3754  
 """  
 
+I arbitrarily selected the following cropped area:
+
+x: (19100,21100); y: (4600,6600)
+
+
+
 Once I've cropped these images, I'm going to try and create a model PSF from stars in the image...hopefully there are some...  
 Creating a good PSF is somewhat complicated. I may resort to using: http://www.stsci.edu/hst/wfc3/analysis/PSF
