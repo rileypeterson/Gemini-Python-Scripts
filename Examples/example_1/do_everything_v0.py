@@ -2,7 +2,7 @@
 ### Attempts combine the tasks in the GCP_Photometry Guide into one script
 
 ### TASKS
-make_EXPTIME_1 = 'no' #if "yes", changes EXPTIME keyword in the header of the drz, wht, and ctx image. Saves the original EXPTIME in important_parameters.txt
+make_EXPTIME_1 = 'yes' #if "yes", changes EXPTIME keyword in the header of the drz, wht, and ctx image. Saves the original EXPTIME in important_parameters.txt
 make_ncomb='no' #if "yes", makes the ncomb image. The pixel values in this image represent the number of stacked images which contributed to said pixel.
 make_weight='no' #if "yes", creates the weight image. If a pixel in the ncomb image has a value >= nmin, it keeps the corresponding value in the original wht image. Otherwise, the value is changed to zero.
 make_sigma='no' #if "yes", creates the sigma image. Formula for this is in the manual.
@@ -102,8 +102,8 @@ if do_run_galfit=="yes":
 
 ###INPUT PARAMETERS FOR TASKS
 
-login_cl_dir = "/Users/rpeterson/" #Directory with your login.cl file. This is so when import pyraf from iraf is called, your login.cl will be recognized
-base_folder = "/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_python_scripts/most_current/examples/example_1/do-everything"  #Should not end with "/", CANNOT CONTAIN "_" AFTER THE LAST SLASH, I.E. BASE_NAME CANNOT NOT HAVE AN UNDERSCORE (IRONY). Now these syntactical nuances are corrected for by the script, so its not a huge deal.
+login_cl_dir = "/home/riley/" #Directory with your login.cl file. This is so when import pyraf from iraf is called, your login.cl will be recognized
+base_folder = "/home/riley/Gemini/Gemini-Python-Scripts/Examples/example_1/do_ev_ex1/"  #Should not end with "/", CANNOT CONTAIN "_" AFTER THE LAST SLASH, I.E. BASE_NAME CANNOT NOT HAVE AN UNDERSCORE (IRONY). Now these syntactical nuances are corrected for by the script, so its not a huge deal.
 drz_image = "do-everything_drz.fits"  #Should be like this UV108899id6p03F160W_drz.fits, I might implement this automatically in the future, but then I would need to guess which image is which (probably by looking for wht or drz or ctx in the name)
 wht_image = "do-everything_wht.fits"  #Should be like this UV108899id6p03F160W_wht.fits
 ctx_image = "do-everything_ctx.fits"  #Should be like this UV108899id6p03F160W_ctx.fits
