@@ -1,0 +1,13 @@
+Inger's Feedback:
+```
+Feedback on make_sims.py - in no particular order:
+·      Consider configuration file instead of editing directly in one code file
+·      Make it clearer what the typical edits are for common usage
+o  Clearly separated sections with comments in the top of each
+·      A brief summary of what it is going to do first would be useful – and put that in a log file.
+·      Trap errors better – I had it crash on making a full field, because I did not first set makegal to true.
+·      Allow user defined output names – or at least root name so one can run several instances in a directory without manually moving things to the side
+·      Write a FITS table with the input parameters instead of the numpy array dump. Recommend converting it to a pandas data frame and then write a fits table. I had to dig out the info and put it into a pandas data frame to make it easier to analyze the output.
+·      Save the figures as default action – limit mag_auto scale to some sensible max, I have 99 in the files from non-detected objects as I run SExtractor in dual mode. Probably the same for flux_radius
+·      FLUX_RADIUS is assumed to be a semi major axis in the input, I don’t think that is correct. SExtractor gives a circualized radius, so this should not be corrected for the ellipticity. I put in a work around to just feed it eps=0. Also I decided to back out the seeing from FLUX_RADIUS to end up with model galaxies that when convolved with the PSF had the correct sizes.
+```
