@@ -1,5 +1,6 @@
 ### User options
 ### Riley Peterson October 2017
+### Will start updating make sims March 1st, 2018
 
 ### I need to credit this website for teaching me the inverse transform sampling
 ### http://www.nehalemlabs.net/prototype/blog/2013/12/16/how-to-do-inverse-transformation-sampling-in-scipy-and-numpy/
