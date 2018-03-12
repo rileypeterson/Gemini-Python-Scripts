@@ -10,32 +10,32 @@
 import numpy as np
 
 ### Logistics
-base_folder = "/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/" #directory where simulations will be made, created if it doens't exist
-login_cl_path = "/Users/rpeterson/" #so that from pyraf import iraf is imported properly
-psf_image = "/Users/rpeterson/Downloads/uds_2epoch_f160w_v0.3_psf.fits" #psf kernel that will be convolve with the galaxies
-galfit_binary = "/net/frigg/Users/inger/bin/galfit" #path to GALFIT, if you can run GALFIT with "$galfit obj.in", just put galfit here
+base_folder = "/Users/test/Gemini-Python-Scripts/Examples/example_2/" #directory where simulations will be made, created if it doens't exist
+login_cl_path = "/Users/test/" #so that from pyraf import iraf is imported properly
+psf_image = "/Users/test/Gemini-Python-Scripts/Examples/example_1/psf-1500-1500.fits" #psf kernel that will be convolve with the galaxies
+galfit_binary = "/Users/test/Downloads/galfit" #path to GALFIT, if you can run GALFIT with "$galfit obj.in", just put galfit here
 
 
 
 ### Make input files for your galaxies
 make_feedmes = 'yes' # if "yes", feedmes are made for the number of galaxies in number_of_sims. If running make_pairs I believe this needs to be "yes".
-feedme_verbose = "no"
+feedme_verbose = "yes"
 
-large_field_xdim,large_field_ydim = 1014,1014 # x,y ; the dimensions of your simulated image
+large_field_xdim,large_field_ydim = 1000,1000 # x,y ; the dimensions of your simulated image
 mag_range = [16,28] # The next five parameters are ranges for the parameters, if make_interpolate_chain = "yes" and the appropriate variables are defined these are interpolated, else selected random from within the ranges
 re_range = [2,40]
 n_range = [0.5,5.5]
 q_range = [0.05,1.0]
 pa_range = [-90,90]
 
-number_of_sims = 1037 # Should be even int, number of simulated galaxies in the image, if make_pairs="yes" and the maximum pixel distance is large it might not be possible to place this number, the script will inform the user if this happens
+number_of_sims = 500 # Should be even int, number of simulated galaxies in the image, if make_pairs="yes" and the maximum pixel distance is large it might not be possible to place this number, the script will inform the user if this happens
 cutout_size = 400 # Should be even int, length size of the cutouts created (recommend large ~400 so that none of the light is accidentally clipped if it is a large galaxy)
 sky_range = [0,0] #Range of sky values, I generally leave this as [0,0], works like the ranges above but is for the sky
 mag_zp = 25.9463 #Magnitude zeropoint
 #plt_scale_ratio=2.1375 #I don't think this is necessary anymore. For drizzling, since my flts had plate scale (0.13) and final drizzle was (0.06) I was trying to simulate galaxies in the flt using data from the drz, therefore their radii had to be shrunk. I figured out how to use the blot task to create an flt from the drz, so this happens then.
-universal_seed = 6061944 ### can be None or int, super helpful for reproducibility. Same seed produces same results
+universal_seed = 45 ### can be None or int, super helpful for reproducibility. Same seed produces same results
     
-make_interpolate_chain = "yes" # if "yes", values are interpolated from SExtractor output tables. Currently, needs to be "yes" if making pairs.
+make_interpolate_chain = "no" # if "yes", values are interpolated from SExtractor output tables. Currently, needs to be "yes" if making pairs.
 if make_interpolate_chain=="yes":
     #first parameter to be interpolated
     chain_type1 = "cubic"
@@ -77,11 +77,11 @@ if make_pairs=="yes":
     
     
 ### Makes the galaxies by sending their feedme/input files to the terminal
-make_galaxies = 'no' 
+make_galaxies = 'yes' 
 make_galaxies_verbose = "no"
 
 ### Convolves with the provided PSF using from astropy.convolution import convolve_fft
-convolve = 'no'
+convolve = 'yes'
 convolution_verbose = "yes"
 
 ### Adds noise to individual cutouts
@@ -122,7 +122,7 @@ if create_large_field=="yes":
     save = "no" #if "yes", saves final output
     if add_models == "yes":
         which_to_add="_convolved" #options are "", "_convolved", "_noised" or "_convolved_noised" #the type of model that will be added
-        how_many_to_add = 1037 # should be <= number_of_sims, number of models that will be added to the large field
+        how_many_to_add = 500 # should be <= number_of_sims, number of models that will be added to the large field
         not_near_edge="yes" # if "yes", galaxies are prevented from going near the edge of the image according to the pixel distance clearance
         if not_near_edge=="yes":
             clearance=50
@@ -134,7 +134,7 @@ if create_large_field=="yes":
         rdnoise2=20 #mknoise read noise
         poisson2="yes" #mknoise add poisson noise
             
-        drizzle="yes" #if "yes", drizzling is performed
+        drizzle="no" #if "yes", drizzling is performed
         if drizzle=="yes":
             path_to_flts="/Users/rpeterson/Downloads/id6p01???_flt.fits" #Path to your flt images wildcard (*) or question mark (?) should be placed where necessary. E.g. path_to_flts="/Users/rpeterson/Downloads/id6p01???_flt.fits", such that glob.glob(path_to_flts) will get all your flts
             path_to_actual_driz="/Users/rpeterson/FP/do_everything/UV105842F160W/UV105842F160W_drz.fits"
@@ -150,7 +150,7 @@ if create_large_field=="yes":
             compare_final_drz="yes"
 
 
-    compare_sky="yes" #if "yes", compares sky of final_image for example drizzle="no" and add_mknoise_large2="yes" to image to sim. If image_to_sim is default makes a histogram of the simulate image
+    compare_sky="no" #if "yes", compares sky of final_image for example drizzle="no" and add_mknoise_large2="yes" to image to sim. If image_to_sim is default makes a histogram of the simulate image
     #If you really want to compare specific regions use the commented part below, otherwise will use the whole image and clip the sky according to the median
     """
     if compare_sky=="yes":
@@ -178,8 +178,10 @@ import sys
 #from multiprocessing import Pool
 import matplotlib.pyplot as plt
 import numpy as np
-import scipy.interpolate as interpolate
-from drizzlepac import astrodrizzle, ablot #If you don't have these and don't want to drizzle you can comment them out
+# =============================================================================
+# import scipy.interpolate as interpolate
+# from drizzlepac import astrodrizzle, ablot #If you don't have these and don't want to drizzle you can comment them out
+# =============================================================================
 from stwcs import wcsutil
 import glob
 import pandas as pd #in case I want to incorporate the master_stats.py definitions into here
