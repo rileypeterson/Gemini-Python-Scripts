@@ -11,3 +11,6 @@ Works in progress:
 -Consider eliminating the dependency of pyraf in favor of astropy modules  
 -Consider simplifying/revising/automating the refitting process  
 
+Last Status Update:
+Sunday March 25, 2018  
+- Work on (issue #1) [https://github.com/rileypeterson/Gemini-Python-Scripts/issues/1] on branch update_sims
