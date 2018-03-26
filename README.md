@@ -13,4 +13,4 @@ Works in progress:
 
 Last Status Update:
 Sunday March 25, 2018  
-- Work on (issue #1) [https://github.com/rileypeterson/Gemini-Python-Scripts/issues/1] on branch update_sims
+- Work on [Issue #1](https://github.com/rileypeterson/Gemini-Python-Scripts/issues/1) on branch [update_sims](https://github.com/rileypeterson/Gemini-Python-Scripts/tree/update_sims)
