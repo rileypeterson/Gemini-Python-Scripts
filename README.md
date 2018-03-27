@@ -12,6 +12,7 @@ Works in progress:
 -Consider simplifying/revising/automating the refitting process  
 
 Status Updates/History:
+
 Sunday March 25, 2018 : [Commit](https://github.com/rileypeterson/Gemini-Python-Scripts/commit/648af5ecbbb6f1e69ad9b20906a22330b7f2d2fb#diff-66d1da86b9755f7c032b1c07934308a6)  
 - Work on [Issue #1](https://github.com/rileypeterson/Gemini-Python-Scripts/issues/1) on branch [update_sims](https://github.com/rileypeterson/Gemini-Python-Scripts/tree/update_sims)  
 
