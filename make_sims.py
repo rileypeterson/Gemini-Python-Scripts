@@ -1,203 +1,51 @@
-### User options
-### Riley Peterson October 2017
-### Will start updating make sims March 1st, 2018
-
-### I need to credit this website for teaching me the inverse transform sampling
-### http://www.nehalemlabs.net/prototype/blog/2013/12/16/how-to-do-inverse-transformation-sampling-in-scipy-and-numpy/
-### Though ultimately I didn't use this, it was interesting and useful nevertheless
-
-### This is here, so that make pairs works
-import numpy as np
-
-### Logistics
-base_folder = "/Users/test/Gemini-Python-Scripts/Examples/example_2/" #directory where simulations will be made, created if it doens't exist
-login_cl_path = "/Users/test/" #so that from pyraf import iraf is imported properly
-psf_image = "/Users/test/Gemini-Python-Scripts/Examples/example_1/psf-1500-1500.fits" #psf kernel that will be convolve with the galaxies
-galfit_binary = "/Users/test/Downloads/galfit" #path to GALFIT, if you can run GALFIT with "$galfit obj.in", just put galfit here
-
-
-
-### Make input files for your galaxies
-make_feedmes = 'yes' # if "yes", feedmes are made for the number of galaxies in number_of_sims. If running make_pairs I believe this needs to be "yes".
-feedme_verbose = "yes"
-
-large_field_xdim,large_field_ydim = 1000,1000 # x,y ; the dimensions of your simulated image
-mag_range = [16,28] # The next five parameters are ranges for the parameters, if make_interpolate_chain = "yes" and the appropriate variables are defined these are interpolated, else selected random from within the ranges
-re_range = [2,40]
-n_range = [0.5,5.5]
-q_range = [0.05,1.0]
-pa_range = [-90,90]
-
-number_of_sims = 500 # Should be even int, number of simulated galaxies in the image, if make_pairs="yes" and the maximum pixel distance is large it might not be possible to place this number, the script will inform the user if this happens
-cutout_size = 400 # Should be even int, length size of the cutouts created (recommend large ~400 so that none of the light is accidentally clipped if it is a large galaxy)
-sky_range = [0,0] #Range of sky values, I generally leave this as [0,0], works like the ranges above but is for the sky
-mag_zp = 25.9463 #Magnitude zeropoint
-#plt_scale_ratio=2.1375 #I don't think this is necessary anymore. For drizzling, since my flts had plate scale (0.13) and final drizzle was (0.06) I was trying to simulate galaxies in the flt using data from the drz, therefore their radii had to be shrunk. I figured out how to use the blot task to create an flt from the drz, so this happens then.
-universal_seed = 45 ### can be None or int, super helpful for reproducibility. Same seed produces same results
-    
-make_interpolate_chain = "no" # if "yes", values are interpolated from SExtractor output tables. Currently, needs to be "yes" if making pairs.
-if make_interpolate_chain=="yes":
-    #first parameter to be interpolated
-    chain_type1 = "cubic"
-    chain_plot1 = "yes"
-    chain_bins1 = 40
-    chain_data1 = "/Users/rpeterson/FP/GALFIT_Simulations1/SExtractor_missing_problem/actual_data_trial_field/UV105842F160W/UV105842F160W_phot/UV105842F160W_tab_all.fits" #Only works for fits files right now, might make for text later
-    chain_column1 = "MAG_AUTO"
-    chain_obj1 = "mag"
-    
-    do_chain2 = "yes"
-    if do_chain2=="yes":
-        #second parameter which is interpolated
-        chain_type2 = "linear"
-        chain_plot2 = "yes"
-        chain_data2 = "/Users/rpeterson/FP/GALFIT_Simulations1/SExtractor_missing_problem/actual_data_trial_field/UV105842F160W/UV105842F160W_phot/UV105842F160W_tab_all.fits" #Only works for fits files right now, might make for text later
-        chain_column2 = "FLUX_RADIUS"
-        chain_obj2 = "re"
-        #if "re" is chain_obj2, will assume that "ELLIPTICITY" exists within chain_data2, and will interpolate the circularized effective radius
-        
-    #chain_type3 = "linear"
-    #chain_plot3 = "yes"
-    #chain_data3 = "/Users/rpeterson/FP/UV-105842_id6p01/UV-105842_id6p01_phot/uv-105842_d6p-01-284.0-f160wtab_all.fits" #Only works for fits files right now, might make for text later
-    #chain_column3 = "FLUX_RADIUS"
-    #chain_obj3 = "re"
-    
-### Makes pairs of galaxies. First half are "parents" randomly placed, second half are "childs" determined by stepping through these intervals
-### The last argument in each of these multiplied together should be half the number of sims
-### For example pixel_distance_steps=np.linspace(5,55,10),luminosity_ratio_steps=np.linspace(0.5,2,4),re_ratio_steps=np.linspace(0.2,3,5),n_steps=np.linspace(1,4,2)
-### My number of sims is 800, half of this is 400. 10*4*5*2=400
-make_pairs="no"
-if make_pairs=="yes":
-    pixel_distance_steps=np.linspace(5,55,10) #These can also be custom non linear arrays
-    luminosity_ratio_steps=np.linspace(0.5,2,4) #2 means child galaxy will be twice as bright
-    interp_re="yes" # if "yes" the re value will be interpolated from the make_interpolate_chain
-    if interp_re=="no":
-        re_ratio_steps=np.linspace(0.2,3,5) #ratio is circularized effective radius, so it factors in axis ratio, 2 means child will be twice as large (circularized re)
-    n_steps=np.linspace(1,4,2)
-    
-    
-    
-### Makes the galaxies by sending their feedme/input files to the terminal
-make_galaxies = 'yes' 
-make_galaxies_verbose = "no"
-
-### Convolves with the provided PSF using from astropy.convolution import convolve_fft
-convolve = 'yes'
-convolution_verbose = "yes"
-
-### Adds noise to individual cutouts
-mknoise_cutouts = 'no' #Should probably be yes if adding to existing image
-mknoise_cutouts_verbose = "yes"
-
-if mknoise_cutouts=="yes":
-    background = 0.136392
-    gain = 6529.37744
-    rdnoise = 4
-    poisson = 'yes'
-
-display_5 = 'no' ### if "yes", displays 5 galaxies at random and shows their feedme files
-
-
-### Large field
-create_large_field = 'yes' # if "yes", allows the large field to be created
-display_large_field = "yes" 
-
-if create_large_field=="yes":
-    image_to_sim = "default" #should be full path to it, shouldn't be in base_folder. If not "default", the image provided will be used to determine possible coordinates (useful if image is rotated)
-    image_to_sim_ext=0 #default is 0, if image_to_sim has multiple extensions this is the extensions number you want to simulate
-    image_to_add_to="default" #should be full path to it. If not "default" galaxies will be added to this image
-    sky_value = 0 # Should probably be zero, if nonzero it sets all the points in your simulated image that aren't zero in the original to sky_value
-    
-    add_mknoise_large1 = "no" # I doubt this will ever be used. Probably should be set to "no". Adds noise to a blank image.
-    
-    if add_mknoise_large1=="yes":
-        background1 = 0.136392
-        gain1=6529.37744
-        rdnoise1=2
-        poisson1="yes"
-        
-    add_models = "yes" #if "yes", models will be added to the image
-    add_models_verbose = "yes" #my preference is to leave this as "yes"
-    label = "yes" #if "yes" a region file will be created and if display_large_field="yes" the region file is displayed. Note their is a 3 pixel offset so that labels don't block the actual galaxy.
-    label_verbose = "no" 
-    save = "no" #if "yes", saves final output
-    if add_models == "yes":
-        which_to_add="_convolved" #options are "", "_convolved", "_noised" or "_convolved_noised" #the type of model that will be added
-        how_many_to_add = 500 # should be <= number_of_sims, number of models that will be added to the large field
-        not_near_edge="yes" # if "yes", galaxies are prevented from going near the edge of the image according to the pixel distance clearance
-        if not_near_edge=="yes":
-            clearance=50
-
-        ### Adds noise after galaxies have been placed in the image, should probably be no if adding to existing images
-        add_mknoise_large2="yes" #If drizzling this should be "no", but the values below should be defined. if "yes", then drizzle should be set to "no", and noise is added using IRAF's mknoise.
-        background2 = 0.623
-        gain2=1632.34375/2.5 #mknoise gain
-        rdnoise2=20 #mknoise read noise
-        poisson2="yes" #mknoise add poisson noise
-            
-        drizzle="no" #if "yes", drizzling is performed
-        if drizzle=="yes":
-            path_to_flts="/Users/rpeterson/Downloads/id6p01???_flt.fits" #Path to your flt images wildcard (*) or question mark (?) should be placed where necessary. E.g. path_to_flts="/Users/rpeterson/Downloads/id6p01???_flt.fits", such that glob.glob(path_to_flts) will get all your flts
-            path_to_actual_driz="/Users/rpeterson/FP/do_everything/UV105842F160W/UV105842F160W_drz.fits"
-            display_blots="yes" #Will display blotted (distorted flts)
-            backgrounds=[0.6351,0.606,0.6373,0.606] #If "default" will use the background2 value above as the value for each flt, otherwise it is the list of specific values for each simulated flt e.g. backgrounds=[0.6351,0.606,0.6373,0.606]
-            
-            ###Originally I had the sky comparison be for user specified regions but this became way too complicated, instead the entire image is compared (histogram ranges are determined by range_sky=(im1_med-3*im1_std,im1_med+3*im1_std) see definition sky_compare for more details)
-            
-            compare_noised_blots_sky="yes" #Will display the blotted noised images
-            #Astrodrizzle Parameters, default is to just make the finally drizzled image without sky subtraction and to clean intermediate images, the user can edit this within the actual code to suite their needs
-            final_bits,final_pixfrac,final_fillval,final_scale,final_rot,resetbits=576,0.8,0,0.06,0,0
-
-            compare_final_drz="yes"
-
-
-    compare_sky="no" #if "yes", compares sky of final_image for example drizzle="no" and add_mknoise_large2="yes" to image to sim. If image_to_sim is default makes a histogram of the simulate image
-    #If you really want to compare specific regions use the commented part below, otherwise will use the whole image and clip the sky according to the median
-    """
-    if compare_sky=="yes":
-        real_sky_lowerx,real_sky_lowery, real_sky_upperx,real_sky_uppery=489,690,605,765    ### Eight coordinates here, if any==None, then both images are display, and user is prompted for values
-        sim_sky_lowerx,sim_sky_lowery, sim_sky_upperx,sim_sky_uppery=None,446,593,498 
-    """
-
-
-############################################################ Cross with caution        
-
 ### Imports
 import random
 import os
-###Check for slash at end of base_folder
-if base_folder[-1]!="/":
-    print("Adding a slash to the end of the base_folder")
-    base_folder=base_folder+"/"
-if os.path.exists(base_folder)==False:
-    os.mkdir(base_folder)
 import subprocess
 import time
+import ast
+import sys
+import glob
+import ConfigParser
+
+import numpy as np
+
 from astropy.io import fits
 from astropy.convolution import convolve_fft
-import sys
-#from multiprocessing import Pool
 import matplotlib.pyplot as plt
-import numpy as np
-# =============================================================================
-# import scipy.interpolate as interpolate
+import scipy.interpolate as interpolate
 # from drizzlepac import astrodrizzle, ablot #If you don't have these and don't want to drizzle you can comment them out
-# =============================================================================
-from stwcs import wcsutil
-import glob
-import pandas as pd #in case I want to incorporate the master_stats.py definitions into here
-
-
+# from stwcs import wcsutil
 
 os.chdir(login_cl_path)
 from pyraf import iraf
 iraf.artdata(_doprint=0)
 os.chdir(base_folder)
 
+
+
+### Parse configuration file
+config = ConfigParser.ConfigParser()
+config.read('example.cfg')
+
+
+
+
+###Check for slash at end of base_folder
+if base_folder[-1]!="/":
+    print("Adding a slash to the end of the base_folder")
+    base_folder=base_folder+"/"
+if os.path.exists(base_folder)==False:
+    os.mkdir(base_folder)
+
+
+
+
 plt_fig=1
 plt.close("all")
 np.random.seed(universal_seed)
 random.seed(universal_seed)
-chain_seed1 = universal_seed 
+chain_seed1 = universal_seed
 chain_seed2 = universal_seed
 seed1=universal_seed
 seed2=universal_seed
@@ -223,13 +71,13 @@ def run(source, reference, output=None, interp='poly5', sinscl=1.0, stepsize=10,
     clobber : boolean
         Specify whether or not to overwrite (delete then replace) the output file if a file
         with that same name already exists on disk
-    
-        
+
+
     ASSUMPTIONS:
       1. All files (source, reference and blotted image)are in simple FITS format.
-      2. WCS information does not include NPOL or D2IM corrections 
+      2. WCS information does not include NPOL or D2IM corrections
             (simple FITS does not support such corrections)
-      3. Source and reference files have the same units, and exptime can be set to 1 
+      3. Source and reference files have the same units, and exptime can be set to 1
             to match count rate units.
     """
     if output:
@@ -250,19 +98,19 @@ def run(source, reference, output=None, interp='poly5', sinscl=1.0, stepsize=10,
     blot_wcs = wcsutil.HSTWCS(reference)
     out_wcs = blot_wcs.copy()
     print(out_wcs)
-    
+
     # Define exptime to scale source drizzled image to reference image units
     exptime = 1
 
     # Blot src to reference
-    outsci = ablot.do_blot(src, src_wcs, out_wcs, exptime, coeffs=True, 
+    outsci = ablot.do_blot(src, src_wcs, out_wcs, exptime, coeffs=True,
                 interp=interp, sinscl=sinscl, stepsize=stepsize) #,
     #            wcsmap=drizzlepac.wcs_functions.WCSMap)
 
-    if output:           
+    if output:
         hdr = fits.getheader(source)
         #return hdr
-        # Update WCS information of source image with 
+        # Update WCS information of source image with
         # WCS values from reference/output WCS
         wcs_hdr = blot_wcs.wcs2header(sip2hdr=True)
         for kw in wcs_hdr:
@@ -280,8 +128,8 @@ def run(source, reference, output=None, interp='poly5', sinscl=1.0, stepsize=10,
         # write out file now...
         phdu.writeto(output)
 
-    return outsci    
-    
+    return outsci
+
 ###Analyzes sky of one or two images
 def sky_compare(image1,x1,y1,x2,y2,ext1=0,image2=None,x1_2=None,y1_2=None,x2_2=None,y2_2=None,ext2=0,close="no",fig_num=100,clean2="no",clean1="no"):
     plt.figure(fig_num)
@@ -298,7 +146,7 @@ def sky_compare(image1,x1,y1,x2,y2,ext1=0,image2=None,x1_2=None,y1_2=None,x2_2=N
         im1_mean,im1_std,im1_med=np.mean(im1_crop_array),np.std(im1_crop_array),np.median(im1_crop_array)
         range_sky=(im1_med-3*im1_std,im1_med+3*im1_std)
         plt.hist(im1_crop_array,label=name1+" data "+str(len(im1_crop_array))+" mean:"+str(im1_mean)+" std:"+str(im1_std)+" median:"+str(im1_med),
-                 alpha=0.5,bins=100,range=range_sky,normed=True) 
+                 alpha=0.5,bins=100,range=range_sky,normed=True)
         print(name1+" mean,stddev,median: "+str(im1_mean)+" "+str(im1_std)+" "+str(im1_med))
     if image2 is not None:
         im2_full_array=fits.open(image2,memmap=True)[ext2].data
@@ -323,9 +171,9 @@ def sky_compare(image1,x1,y1,x2,y2,ext1=0,image2=None,x1_2=None,y1_2=None,x2_2=N
             print(name1+" mean,stddev,median: "+str(im1_mean)+" "+str(im1_std)+" "+str(im1_med))
     plt.legend(loc="upper right")
     plt.xlabel("sky")
-    plt.ylabel("number in bin (normalized)")  
+    plt.ylabel("number in bin (normalized)")
     plt.show()
-    
+
 #Builds top of feedme file
 def top(file1,output_name,cutout_size,mag_zp):
     file1.write("#================================================================================"+'\n')
@@ -355,14 +203,14 @@ def comp1(file1,cutout_size,mag_range,re_range,n_range,q_range,pa_range,plt_scal
     file1.write("10) "+pa+"     1          #  position angle (PA) [deg: Up=0, Left=90]"+'\n')
     file1.write('\n')
     return mag,re,n,q,pa
-    
+
 #Builds sky according to sky range
 def sky(file1,sky_range):
      file1.write("0) sky                    #    Object type"+'\n')
      file1.write("1) "+str(random.uniform(sky_range[0],sky_range[1]))+"     0       #  sky background"+'\n')
      file1.write('\n')
- 
-#Used for pairs approach to get the coordinates within a given distance and x,y    
+
+#Used for pairs approach to get the coordinates within a given distance and x,y
 def get_circle_coords(distance,x,y):
     xmin,xmax,ymin,ymax=x-distance,x+distance,y-distance,y+distance
     vals=[]
@@ -398,7 +246,7 @@ if make_interpolate_chain=="yes":
             ar=str(chain_val1)
         if chain_obj1=="pa":
             pa=str(chain_val1)
-        
+
         ### do chain2
         print("circularized effective radius",re)
         if chain_obj2 is not None and chain_val2 is not None:
@@ -413,23 +261,9 @@ if make_interpolate_chain=="yes":
                 ar=str(chain_val2)
             if chain_obj2=="pa":
                 pa=str(chain_val2)
-        """
-        ### do chain3
-        if chain_obj3!=None and chain_array3!=None:
-            if chain_obj3=="mag":
-                mag=str(np.random.choice(chain_array3))
-            if chain_obj3=="re":
-                re=str(np.random.choice(chain_array3))
-            if chain_obj3=="n":
-                n=str(np.random.choice(chain_array3))
-            if chain_obj3=="ar":
-                ar=str(np.random.choice(chain_array3))
-            if chain_obj3=="pa":
-                pa=str(np.random.choice(chain_array3))
-        """
 
 
-        
+
         if manual_overwrite=="yes":
             mag,re,n,ar=str(mag_val),str(re_val),str(n_val),str(q_val)
         #mag,re,n,ar,pa="24.5993","4.9040","0.8374","1.0","-37.8909"
@@ -447,38 +281,12 @@ def make_chain_vals1(chain_data1,chain_bins1,chain_seed1,chain_type1,chain_obj1,
     ###Open chain_data1 and get a histogram of the values
     chain_data1 = fits.open(chain_data1)[1].data[chain_column1]
     chain_hist1, chain_bins1 = np.histogram(np.sort(chain_data1), bins=chain_bins1, normed=True, density=True)
-    
-    ### There are two ways to proceed personally I think the second way is better
-    ### Way #1 inverse transform sampling:
-    
     chain_values1 = np.zeros(chain_bins1.shape)
     chain_values1[1:] = np.cumsum(chain_hist1*np.diff(chain_bins1))
-    
-    """
-    ### There are two ways to proceed personally I think the second way is better
-    ### Way #1 inverse transform sampling:
-    epsilon=0
-    for i in range(0,len(chain_values1)-1):
-        if chain_values1[i]>=chain_values1[i+1]:
-            chain_values1[i+1]=chain_values1[i+1]+1*10**-11+epsilon
-            epsilon=epsilon+1*10**-12
-    #print(chain_values1)
-    #print(chain_bins1)
-    chain_inv_cdf1 = interpolate.interp1d(chain_values1, chain_bins1, kind=chain_type1)
-    np.random.seed(chain_seed1)
-    chain_r1 = helper           #Should ensure that we make a random choice every time but from the same distribution
-    mag_array = chain_inv_cdf1(chain_r1)
-    plt.hist(chain_data1, bins=chain_bins1, alpha=0.4, normed=True, color='b',label="original data",zorder=2)
-    plt.hist(chain_inv_cdf1(chain_r1), bins=chain_bins1, alpha=0.5, normed=True, color='g', label="interpolated data",zorder=1)
-    plt.legend(loc="upper right")
-    plt.xlabel(chain_obj1)
-    plt.ylabel("Probability")
-    plt.title("Chain1 Results")
-    """
-    
+
     ### Way #2 Interpolate PDF of data from histogram, finely sample from this to get
     ### a list of data values and their interpolated weight then randomly select from this distribution (with weighting)
-    
+
     chain_linspace1 = np.linspace(np.min(chain_data1),np.max(chain_data1),chain_values1.size-1)
     chain_pre_interp1 = interpolate.interp1d(chain_linspace1, chain_hist1*np.diff(chain_bins1), kind=chain_type1, fill_value="extrapolate") #interpolates PDF
     x_chain=np.linspace(np.min(chain_data1),np.max(chain_data1),100000) #Creates discrete range of possible data values
@@ -508,33 +316,25 @@ def make_chain_func2(chain_data1,chain_column1,chain_array1,chain_obj1,chain_dat
         chain_data_q2 = (1-chain_data_q2.astype("f8"))**0.5 ###get sqrt of axis ratio
         chain_data2=np.multiply(chain_data_q2,chain_data2) ###multiply by FLUX_RADIUS to get a circularized effective ardius
     chain_data1 = fits.open(chain_data1)[1].data[chain_column1]
-    chain_data1 = chain_data1.astype("f8") 
+    chain_data1 = chain_data1.astype("f8")
     chain_interp_func2 = interpolate.interp1d(chain_data1, chain_data2, kind=chain_type2, fill_value="extrapolate")
     chain_x2 = np.linspace(np.min(chain_data1),np.max(chain_data1),100000)
     plt.figure(plt_fig+1)
     plt.plot(chain_x2, chain_interp_func2(chain_x2),color='g',alpha=0.5,label="interpolated function",zorder=1)
     plt.scatter(chain_data1, chain_data2, label="original data",alpha=0.5,zorder=2, color='b')
     plt.scatter(chain_array1, chain_interp_func2(chain_array1), label="simulated data sample size "+str(number_of_sims), alpha=0.5, zorder=3, color='r')
-    #df11=pd.DataFrame.from_dict(np.load("/Users/rpeterson/FP/GALFIT_Simulations1/SExtractor_missing_problem/inputs_dict.npy").item()).T.drop("seed")
-    #foo=df11[~df11.id.isin(b.values())]   #Here b is SEx_to_sim as determined by master_stats.py
-    #missed_ids,missed_mags,missed_res=foo["id"],foo["mag"].astype(float),np.multiply(foo["re"].astype(float),foo["q"].astype(float)**0.5)
-    #print(len(missed_ids))
-    #plt.scatter(missed_mags,missed_res,label="SExtractor misses", alpha=0.5, zorder=4, color='k')
-    
-    #[plt.annotate(obj[0],xy=(obj[1],obj[2])) for obj in zip(missed_ids,missed_mags,missed_res)]
-    #plt.scatter(chain_val1, chain_val2, label="simulated data points")
     plt.legend(loc="upper right")
     plt.xlabel(chain_obj1)
     plt.ylabel(chain_obj2)
     plt.title("Chain2 Results")
-    
-    return chain_interp_func2
-    
-    
-    
-    
 
-    
+    return chain_interp_func2
+
+
+
+
+
+
 ### Things that don't make sense
 stop_button="no"
 try:
@@ -542,7 +342,7 @@ try:
         print("Warning:how_many_to_add>number_of_sims. Please set them equal or to values that make sense.")
         ask = raw_input("Continue? If 'y' then they will be set equal(y/n):")
         if ask=="y":
-            how_many_to_add=number_of_sims    
+            how_many_to_add=number_of_sims
         else:
             stop_button="yes"
 except:
@@ -564,9 +364,9 @@ if make_pairs=="yes":
     if len(pairs)>number_of_sims/2:
         print("The length of pair values:"+str(len(pairs))+" is greater than half the number of sims. Either increase the number of sims or decrease the number of possible pair values.")
         sys.exit()
-    
-    
-    
+
+
+
 ### Making input feedme files
 initial_time = time.time()
 chain_val1_list=[]
@@ -582,7 +382,7 @@ if make_feedmes=='yes':
         chain_array1=make_chain_vals1(chain_data1,chain_bins1,chain_seed1,chain_type1,chain_obj1,chain_column1,plt_fig=plt_fig)
         if do_chain2=="yes":
             chain_function2= make_chain_func2(chain_data1,chain_column1,chain_array1,chain_obj1,chain_data2,chain_type2,chain_obj2,chain_column2,plt_fig=plt_fig)
-            
+
     for i in range(1,number_of_sims+1):
         if feedme_verbose=="yes":
             print("Creating feedme for galaxy number "+str(i)+" elapsed time is:"+str(round((time.time()-initial_time),4)))
@@ -625,14 +425,14 @@ if make_feedmes=='yes':
             mag_rand,re_rand,n_rand,q_rand,pa_rand=comp1(file1,cutout_size,mag_range,re_range,n_range,q_range,pa_range,plt_scale_ratio=1)
             inputs_dict[i]={"id":i,"x_cutout":input_x,"y_cutout":input_y,"mag":mag_rand,"re":re_rand,"n":n_rand,"q":q_rand,"pa":pa_rand}
         sky(file1,sky_range)
-        
+
         file1.close()
     np.save(inputs_dict_file,inputs_dict)
-    
-    
-    
+
+
+
 ### Runnning GALFIT to actually create models (in parallel)
-command = galfit_binary 
+command = galfit_binary
 #initial_time = time.time()
 
 if make_galaxies=='yes':
@@ -643,20 +443,8 @@ if make_galaxies=='yes':
         subprocess.Popen([command,name])
         if make_galaxies_verbose=="yes":
             print("Making galaxy image for number "+str(i)+" elapsed time is:"+str(round((time.time()-initial_time),4)))
-    """
-    def run_galfit(name):
-        subprocess.Popen([command,name])    
-        print("Making galaxy image for number "+str(i)+" "+str(time.time()-initial_time))
-    name_list=[]
-    for i in range(1,number_of_sims+1):
-        name_list.append(base_folder+"obj_sim_"+str(i)+".in")
-    Pool().map(run_galfit,name_list)
-Pool.close()
-print("done")
-"""
-#initial_time = time.time()
+
 if convolve=='yes':
-    #ADDRESS NEED TO NORMALIZE PSF BEFORE CONVOLVING
     for i in range(1,number_of_sims+1):
         try:
             os.remove("galout_"+str(i)+"_model_convolved.fits")
@@ -665,7 +453,7 @@ if convolve=='yes':
         input_name = "galout_"+str(i)+"_model.fits"
         sim = fits.open(input_name)
         psf = fits.open(psf_image)
-        new_image = convolve_fft(sim[0].data,psf[0].data,normalize_kernel=True) #You can also try boundary="wrap", this seems to be faster, but I'm not sure what the difference is  
+        new_image = convolve_fft(sim[0].data,psf[0].data,normalize_kernel=True) #You can also try boundary="wrap", this seems to be faster, but I'm not sure what the difference is
         new_image = np.float32(new_image)
         hdu = fits.PrimaryHDU(new_image)
         hdu.writeto("galout_"+str(i)+"_model_convolved.fits")
@@ -691,7 +479,7 @@ if mknoise_cutouts=='yes':
         else:
             input_name = "galout_"+str(i)+"_model.fits"
             iraf.mknoise(input_name,output="galout_"+str(i)+"_model_noised.fits",background=background,gain=gain,rdnoise=rdnoise,poisson=poisson,seed=seed)
-        if mknoise_cutouts_verbose=="yes":    
+        if mknoise_cutouts_verbose=="yes":
             print("Adding noise for galaxy number "+str(i)+" elapsed time is:"+str(round((time.time()-initial_time),4)))
 
 ###Display 5 galaxies
@@ -704,7 +492,7 @@ if display_5=='yes':
                 objects.append(obj)
         os.system("ds9 "+" -fits ".join(objects)+" &")
         os.system("open "+"obj_sim_"+str(i)+".in &")
-        
+
 
 
 
@@ -757,7 +545,7 @@ if create_large_field=='yes':
     else:
         os.system("cp "+background_field+" full_field_with_sky_galaxies.fits")
         image_to_add_gals = "full_field_with_sky_galaxies.fits"
-        
+
     ###Add models
     if add_models == "yes":
         if image_to_sim=="default":
@@ -794,7 +582,7 @@ if create_large_field=='yes':
         skip="no"
         how_many_to_add_copy=how_many_to_add
         parents=how_many_to_add/2
-        
+
         ###Start going through the galaxies
         while i<=how_many_to_add:
             added_image=fits.open(image_to_add_gals,mode="update")
@@ -857,7 +645,7 @@ if create_large_field=='yes':
                                 how_many_to_add=2*(i-1)
                                 time.sleep(10)
                                 break
-                            
+
                         #if hit_here=="yes" and (time.time()-start_time)>2:
                         #    coords_to_exclude=[get_circle_coords(int(pairs[-1][0]),int(inputs_dict[id]["x_global"]),int(inputs_dict[id]["y_global"]),possible_coords) for id in sorted(inputs_dict.keys()) if id!="seed" and id<=i]
                         #    coords_to_exclude=[(coords_to_exclude[l][1],coords_to_exclude[l][0]) for l in range(len(coords_to_exclude))]
@@ -872,7 +660,7 @@ if create_large_field=='yes':
                 idx = random.randint(0,len(possible_child_coords)-1)
                 x = possible_child_coords[idx][0]
                 y = possible_child_coords[idx][1]
-                
+
                 selected_coords_so_far=[(int(inputs_dict[id]["x_global"]),int(inputs_dict[id]["y_global"])) for id in sorted(inputs_dict.keys()) if id!="seed" and id<i and id!=i-how_many_to_add/2]
                 start_time=time.time()
                 while True:
@@ -921,12 +709,12 @@ if create_large_field=='yes':
                             print("Skipping "+str(i)+" because there is no place for it to go")
                             #sys.exit()
                             break
-                        
+
                     if hit_here=="no":
                         break
-                    
-                            
-                
+
+
+
                 n=n+1
                 #coords_to_exclude=[get_circle_coords(int(pairs[-1][0]),int(inputs_dict[id]["x_global"]),int(inputs_dict[id]["y_global"]),possible_coords) for id in sorted(inputs_dict.keys()) if id!="seed" and id<=i]
                 #coords_to_exclude=[(coords_to_exclude[l][1],coords_to_exclude[l][0]) for l in range(len(coords_to_exclude))]
@@ -949,7 +737,7 @@ if create_large_field=='yes':
                 if xmin<0:
                     print("Galaxy #"+str(i)+" was off edge"+" xmin was:"+str(xmin)+" new xmin:"+str(abs(xmin)))
                     xmini=abs(xmin)
-                    #cutout_array=cutout_array[:,xmini:] 
+                    #cutout_array=cutout_array[:,xmini:]
                     #print(cutout_array.shape)
                     xmin=0
                 if ymin<0:
@@ -967,10 +755,10 @@ if create_large_field=='yes':
                 if ymax>large_field_ydim:
                     print("Galaxy #"+str(i)+" was off edge"+" ymax was:"+str(ymax)+" new ymax:"+str(large_field_ydim-ymin_org))
                     ymaxi=(ymax-y+1)+(large_field_ydim-y+1)
-                    #cutout_array=cutout_array[:ymaxi,:]   
+                    #cutout_array=cutout_array[:ymaxi,:]
                     #print(cutout_array.shape)
                     ymax=large_field_ydim
-                    
+
                 added_image_array[ymin:ymax,xmin:xmax]=added_image_array[ymin:ymax,xmin:xmax]+cutout_array[ymini:ymaxi,xmini:xmaxi]
                 cutout.close()
                 if add_models_verbose=="yes":
@@ -1000,58 +788,30 @@ if create_large_field=='yes':
         final_large_image=image_to_add_gals
     if add_mknoise_large2=="yes" and add_models=="yes":
         print("Running mknoise2 (after galaxies have been added)")
-        """
-        Thought that convolving after adding instead of individual cutouts might have some effect, but it doesn't seem to change anything
-        In comments are other things are tried to obtain the detection of faint galaxies
-        os.rename(image_to_add_gals,image_to_add_gals.replace(".fits","_temp.fits"))
-        sim = fits.open(image_to_add_gals.replace(".fits","_temp.fits"))
-        psf = fits.open(psf_image)
-        new_image = convolve_fft(sim[0].data,psf[0].data,boundary="wrap",normalize_kernel=True)
-        new_image = np.float32(new_image)
-        sim.close()
-        hdu = fits.PrimaryHDU(new_image)
-        try:
-            os.remove(image_to_add_gals)
-        except:
-            pass
-        hdu.writeto(image_to_add_gals,overwrite=True)
-        """
-        #os.rename(image_to_add_gals,image_to_add_gals.replace(".fits","_temp.fits"))
-        #iraf.imexpr("(a/0.47)", image_to_add_gals, a=image_to_add_gals.replace(".fits","_temp.fits"))
-        #for i in range(1,5):
-        #    iraf.mknoise(image_to_add_gals,output=image_to_add_gals.replace(".fits","_noise2"+"_"+str(i)+".fits"), background=background2, gain=gain2, rdnoise=rdnoise2, poisson=poisson2, seed=seed2)
-        #    seed2=universal_seed*2
-        #seed2=universal_seed
-        #iraf.imcombine(image_to_add_gals.replace(".fits","_noise2"+"_*"+".fits"), image_to_add_gals.replace(".fits","_noise2.fits"), combine="average")
         iraf.mknoise(image_to_add_gals,output=image_to_add_gals.replace(".fits","_noise2.fits"), background=background2, gain=gain2, rdnoise=rdnoise2, poisson=poisson2, seed=seed2)
-        #os.rename(image_to_add_gals.replace(".fits","_noise2.fits"),image_to_add_gals.replace(".fits","_noise2_temp.fits"))
-        #iraf.imexpr("(a)", image_to_add_gals.replace(".fits","_noise2.fits"), a=image_to_add_gals.replace(".fits","_noise2_temp.fits"))
         final_large_image=image_to_add_gals.replace(".fits","_noise2.fits")
         original_image_to_add_gals=fits.open(image_to_add_gals)
         mknoise2_file=fits.open(final_large_image,mode="update")
         mknoise2_file[0].data=np.nan_to_num(mknoise2_file[0].data)
         mknoise2_file[0].data[original_image_to_add_gals[0].data==0]=0
-    #sys.exit()
-    ###Thought this would free up memory, but I don't think its an issue
     added_image_array,chain_array1,cutout_array,image_data,j,non_edge_coords,possible_coords,possible_coords_copy=None,None,None,None,None,None,None,None
     num=100
-    #sys.exit()
     if drizzle=="yes":
         print("Drizzling")
-        
+
         #1. Blot to distorted frames of original flts
         list_of_original_flts=glob.glob(path_to_flts)
-        
+
         #Create simple fits for run definition, assume SCI extension is 1
         [iraf.imcopy(obj+"[1]",base_folder+obj.split("/")[-1].replace(".fits","_simple.fits")) for obj in list_of_original_flts if os.path.exists(base_folder+obj.split("/")[-1].replace(".fits","_simple.fits"))==False]
         flts_list_simple=glob.glob("*_simple.fits") #Hopefully this is only thing will name simple
-        
+
         #Create copies of the simulated image which will be blotted
         full_with_gals=image_to_add_gals
         [iraf.imcopy(full_with_gals+"["+str(image_to_sim_ext)+"]",full_with_gals.replace(".fits","_"+str(i)+".fits")) for i in range(1,len(list_of_original_flts)+1)]
         full_with_gals_list=glob.glob(full_with_gals.replace(".fits","_?.fits"))
         #noised_list=glob.glob("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/full_field_with_sky_galaxies_noise2_?.fits")
-        
+
         #Blot the images
         objs=zip(flts_list_simple,full_with_gals_list)
         for obj in objs:
@@ -1065,51 +825,23 @@ if create_large_field=='yes':
         blots_list=glob.glob("full_*_distorted.fits")
         if display_blots=="yes":
             os.system("ds9 full_*_distorted.fits &")
-        
-        
+
+
         #2. Obtain WCS Coordinates (I don't know if running tweak reg is necessary but here is how I did it)
-        """
-        #TweakREG
-        #Run SExtractor 
-        config_file="/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/config.sex"
-        pos_list_file=open("pos.list","w")
-        astdriz_file=open("astdriz.list","w")
-        for i in range(1,5):
-            new_config_name="/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/config"+str(i)+".sex"
-            new_config_file=open(new_config_name,"w")
-            [new_config_file.write(line.replace("astrodrizzle","sim"+str(i))) for line in open(config_file,"r").readlines()]
-            new_config_file.close()
-            os.system("sex sim_flt_"+str(i)+"_new.fits -c config"+str(i)+".sex")
-            pos_list_file.write("sim_flt_"+str(i)+"_new.fits\n")
-            astdriz_file.write("sim_flt_"+str(i)+"_new.fits "+"sim"+str(i)+"_tabext1.cat\n")
-        pos_list_file.close()
-        astdriz_file.close()
-        tweakreg.TweakReg("@pos.list",catfile="astdriz.list",xcol=3,ycol=4,updatehdr="yes",
-                          wcsname="HILO",searchrad=2,fluxunits="mag",rfluxunits="mag",threshold=3,clean=True)
-        """
+
 
 
         #3. Add noise with different seed values
-        
-        #Use these if you need custom noise characteristics
-        #backgrounds,ind=[0.71,0.681,0.71,0.68],0
-        #backgrounds=[0.695 for b in backgrounds]
-        #readnoises=[20.200,19.7999,19.900,20.100]
-        #readnoises=[r/10 for r in readnoises]
-        #gains=[652.9375*0.695,652.9375*0.6725,652.9375*0.67,652.9375*0.69]
-        #gains=[2611.75*2.5 for i in gains]
         ind=0
         for blot in blots_list:
             if backgrounds!="default":
                 background2=backgrounds[ind]
-            #rdnoise2=readnoises[ind]
-            #gain2=gains[ind]
             print(background2)
             iraf.mknoise(blot,output=blot.replace(".fits","_noise2.fits"), background=background2, gain=gain2, rdnoise=rdnoise2, poisson=poisson2, seed=seed2)
             seed2=universal_seed*seed2
             ind=ind+1
         seed2=universal_seed
-        
+
         if compare_noised_blots_sky=="yes":
             noised_blots_list=glob.glob("full_*_distorted_noise2.fits")
             os.system("ds9 full_*_distorted_noise2.fits &")
@@ -1122,8 +854,8 @@ if create_large_field=='yes':
                             image2=obj[0],x1_2=x1_sim,y1_2=y1_sim,x2_2=x2_sim,y2_2=y2_sim,ext2=0,
                             close="no",fig_num=num,clean1="yes",clean2="yes")
                 num=num+1
-        
-        
+
+
         #4. Assembly the simulated image for astrodrizzle, build the other extensions
         iraf.delete("sim_flt_*.fits")
         noised_blots_list=glob.glob("full_*_distorted_noise2.fits")
@@ -1133,12 +865,12 @@ if create_large_field=='yes':
             hdu_1_new=fits.open(blot)
             #hdu_sim[1].data=hdu_1_new[0].data
             #hdu_sim.close()
-            
+
             hdu_old_name=list_of_original_flts[i-1]
             hdu_old=fits.open(hdu_old_name)
             hdu_1_new[0].header["EXTVER"]=1
             hdu_old[3].data=np.zeros(hdu_old[3].data.shape,dtype="int")
-            
+
             #Zero extension which is just header information is taken from the original flt
             #First extension is the SCI image which has the simulated data and its header (might use old header)
             #Third extension is the data quality flag image which since the simulated data doesn't have issues is all zeros as detailed above
@@ -1146,15 +878,15 @@ if create_large_field=='yes':
             hdulist = fits.HDUList([hdu_old[0],fits.ImageHDU(hdu_1_new[0].data,hdu_old[1].header,name="SCI"),hdu_old[3]])
             hdulist.writeto(base_folder+"sim_flt_"+str(i)+".fits")
             i=i+1
-            
-            
+
+
         #5. Run astrodrizzle, user can change if necessary
         astrodrizzle.AstroDrizzle(input=glob.glob(base_folder+"sim_flt_?.fits"),output="full",skysub=False,#wcskey="HILO", <--If using Tweakreg
                                   final_pixfrac=final_pixfrac,final_bits=final_bits,driz_cr=False,median=False,blot=False,driz_separate=False,
                                   context=True,resetbits=resetbits,clean=True,final_rot=final_rot,final_scale=final_scale,final_fillval=final_fillval)
 
-        
-        
+
+
         #5. Compare to actual drz if desired
         if compare_final_drz=="yes":
             os.system("ds9 full_drz_sci.fits -fits "+path_to_actual_driz+" &")
@@ -1166,280 +898,17 @@ if create_large_field=='yes':
                         close="no",fig_num=num,clean1="yes",clean2="yes")
             num=num+1
         final_large_image="full_drz_sci.fits"
-        
-        
+
+
         #Copy to folder to be tested, this was just for my personal use.
         #The other things listed are artifacts of things I tried to get the drizzling to work
-        """
-        outputs=glob.glob("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/full_drz_*.fits")
-        test_folder_outputs=glob.glob("/Users/rpeterson/FP/GALFIT_Simulations1/testing_my_simulated_drizzled_image/do-everything-with-blot/do-everything-with-blot_*.fits")
-        iraf.delete("/Users/rpeterson/FP/GALFIT_Simulations1/testing_my_simulated_drizzled_image/do-everything-with-blot/*.fits")
-        for obj in zip(outputs,test_folder_outputs):
-            os.system("cp "+obj[0]+" "+obj[1])
-
-        sys.exit()
-        
-        sys.exit()
-        
-        
-        x1_real:524
-
-y1_real:689
-
-x2_real:602
-
-x2_real:738
-
-x1_sim:598
-
-y1_sim:570
-
-x2_sim:653
-
-y2_sim:605
 
 
-        #4. 
-        
-        #Offsets, if necessary?
-        
-        x1,y1=418.119, 667.413
-        x2,y2=421.533, 670.826
-        x3,y3=446.567, 695.572
-        x4,y4=450.014, 699.035
-        offsets=dict()
-        offsets[1],offsets[2],offsets[3],offsets[4]={"x":x1,"y":y1},{"x":x2,"y":y2},{"x":x3,"y":y3},{"x":x4,"y":y4}
-        for i in range(1,5):
-            file="/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/full_field_with_sky_galaxies_"+str(i)+".fits"
-            offset_file_temp=file.replace(".fits","_offset_temp.fits")
-            offset_file=file.replace(".fits","_offset.fits")
-            iraf.delete(offset_file_temp)
-            iraf.imcopy("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/full_field_with_sky_galaxies.fits",offset_file_temp)
-            iraf.imshift(offset_file_temp, offset_file, offsets[i]["x"]-offsets[1]["x"],offsets[i]["y"]-offsets[1]["y"])
-            iraf.delete(offset_file_temp)
-        
-        #Do blotting
-        os.system("cp "+image_to_sim+" "+base_folder)
-        flts_list=glob.glob("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/id6p01???_flt.fits")
-        [iraf.imcopy(obj+"[1]",obj.replace(".fits","_simple.fits")) for obj in flts_list if os.path.exists(obj.replace(".fits","_simple.fits"))==False]
-        flts_list_simple=glob.glob("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/id6p01???_flt_simple.fits")
-        full_with_gals="/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/full_field_with_sky_galaxies.fits"
-        [iraf.imcopy(full_with_gals+"[1]",full_with_gals.replace(".fits","_"+str(i)+".fits")) for i in range(1,5)]
-        full_with_gals_list=glob.glob("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/full_field_with_sky_galaxies_?.fits")
-        noised_list=glob.glob("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/full_field_with_sky_galaxies_noise2_?.fits")
-        for obj in zip(flts_list_simple,full_with_gals_list):
-            run(obj[1], obj[0], output=obj[1].replace(".fits","_distorted.fits"), interp='poly5', sinscl=1.0, stepsize=10, clobber=True)
-        #backgrounds,ind=[0.63739,0.61008,0.64024,0.60927],0
-        #readnoises=[20.200,19.7999,19.900,20.100]
-        #gains=[652.9375,652.9375,652.9375,652.9375]
-        #gains=[g*2.5 for g in gains]
-        #sys.exit()
-        
-        for image in glob.glob("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/full_field_with_sky_galaxies_?_distorted.fits"):
-            background2=backgrounds[ind]-0.01
-            rdnoise2=readnoises[ind]
-            gain2=gains[ind]
-            if image_to_sim_ext!=0:
-                iraf.mknoise(image,output=image.replace(".fits","_noise2.fits"), background=background2, gain=gain2, rdnoise=rdnoise2, poisson=poisson2, seed=seed2)
-            else:
-                iraf.mknoise(image,output=image.replace(".fits","_noise2.fits"), background=background2, gain=gain2, rdnoise=rdnoise2, poisson=poisson2, seed=seed2)
-            seed2=universal_seed*seed2
-            ind=ind+1
-        
-        seed2=universal_seed
-        
-        
-        sky_compare("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/full_field_with_sky_galaxies_4_distorted_noise2.fits",708,102,823,174,
-                    ext1=0,image2="/Users/rpeterson/Downloads/id6p01y4q_flt.fits",x1_2=124,y1_2=609,
-                    x2_2=178,y2_2=644,ext2=1,close="no")
-        sky_compare("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/full_field_with_sky_galaxies_3_distorted_noise2.fits",708,102,823,174,
-                    ext1=0,image2="/Users/rpeterson/Downloads/id6p01y2q_flt.fits",x1_2=893,y1_2=283,
-                    x2_2=957,y2_2=424,ext2=1,close="no",fig_num=101)
-        sky_compare("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/full_field_with_sky_galaxies_2_distorted_noise2.fits",693,233,786,293,
-                    ext1=0,image2="/Users/rpeterson/Downloads/id6p01y0q_flt.fits",x1_2=306,y1_2=232,
-                    x2_2=386,y2_2=283,ext2=1,close="no",fig_num=103)
-        sky_compare("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/full_field_with_sky_galaxies_1_distorted_noise2.fits",36,550,122,606,
-                    ext1=0,image2="/Users/rpeterson/Downloads/id6p01xyq_flt.fits",x1_2=451,y1_2=686,
-                    x2_2=548,y2_2=747,ext2=1,close="no",fig_num=104)
-        #sys.exit()
-        #Copy other extensions from flats, should glob this
-        
-        iraf.delete("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/sim*.fits")
-        
-        overwrite_ext_1="yes"
-        
-        for i in range(0,1):
-            try:
-                #I have no idea why this is necessary, but if this isn't here we get a segmentation fault from iraf??
-                iraf.imcopy("/Users/rpeterson/Downloads/id6p01xyq_flt.fits["+str(i)+"]","/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/sim_flt_1.fits["+str(i)+",overwrite]")
-            except:
-                iraf.imcopy("/Users/rpeterson/Downloads/id6p01xyq_flt.fits["+str(i)+"]","/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/sim_flt_1.fits["+str(i)+",overwrite]")
-            iraf.imcopy("/Users/rpeterson/Downloads/id6p01y0q_flt.fits["+str(i)+"]","/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/sim_flt_2.fits["+str(i)+",overwrite]")
-            iraf.imcopy("/Users/rpeterson/Downloads/id6p01y2q_flt.fits["+str(i)+"]","/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/sim_flt_3.fits["+str(i)+",overwrite]")
-            iraf.imcopy("/Users/rpeterson/Downloads/id6p01y4q_flt.fits["+str(i)+"]","/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/sim_flt_4.fits["+str(i)+",overwrite]")
-        #iraf.
-        for i in range(1,4): #Make a DQ image of all zero, only need SCI,DQ and WCSCORR
-            if i in [2]:
-                continue
-            if False:
-                iraf.imcopy("/Users/rpeterson/Downloads/id6p01y0q_flt.fits["+str(i)+"]","/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/sim_flt_1.fits[append]")
-                iraf.imcopy("/Users/rpeterson/Downloads/id6p01y0q_flt.fits["+str(i)+"]","/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/sim_flt_2.fits[append]")
-                iraf.imcopy("/Users/rpeterson/Downloads/id6p01y0q_flt.fits["+str(i)+"]","/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/sim_flt_3.fits[append]")
-                iraf.imcopy("/Users/rpeterson/Downloads/id6p01y0q_flt.fits["+str(i)+"]","/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/sim_flt_4.fits[append]")
-            else:
-                iraf.imcopy("/Users/rpeterson/Downloads/id6p01xyq_flt.fits["+str(i)+"]","/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/sim_flt_1.fits[append]")
-                iraf.imcopy("/Users/rpeterson/Downloads/id6p01y0q_flt.fits["+str(i)+"]","/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/sim_flt_2.fits[append]")
-                iraf.imcopy("/Users/rpeterson/Downloads/id6p01y2q_flt.fits["+str(i)+"]","/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/sim_flt_3.fits[append]")
-                iraf.imcopy("/Users/rpeterson/Downloads/id6p01y4q_flt.fits["+str(i)+"]","/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/sim_flt_4.fits[append]")
-        
-        iraf.copy("/Users/rpeterson/Downloads/id6p01xyq_flt.fits","/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/sim_flt_1.fits")
-        iraf.copy("/Users/rpeterson/Downloads/id6p01y0q_flt.fits","/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/sim_flt_2.fits")
-        iraf.copy("/Users/rpeterson/Downloads/id6p01y2q_flt.fits","/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/sim_flt_3.fits")
-        iraf.copy("/Users/rpeterson/Downloads/id6p01y4q_flt.fits","/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/sim_flt_4.fits")
-        
-        if overwrite_ext_1=="yes":
-            for i in range(1,5):
-                #iraf.imarith("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/full_field_with_sky_galaxies_"+str(i)+"_distorted.fits","*",4,"/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/full_field_with_sky_galaxies_"+str(i)+"_distorted_x4.fits")
 
-                
-                
-                image="/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/full_field_with_sky_galaxies_"+str(i)+"_distorted.fits"
-                iraf.mknoise(image,output=image.replace(".fits","_noise2.fits"), background=background2, gain=gain2, rdnoise=rdnoise2, poisson=poisson2, seed=seed2)
-                seed2=universal_seed*seed2
-                #iraf.imcopy("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/full_field_with_sky_galaxies_"+str(i)+"_distorted_noise2.fits","/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/sim_flt_"+str(i)+".fits[DQ,3,overwrite]")
-                #hdu_sim=fits.open("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/sim_flt_"+str(i)+".fits","update")
-                #hdu_new=fits.open("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/full_field_with_sky_galaxies_"+str(i)+"_distorted_noise2.fits")
-                #hdu_sim[1].data=hdu_new[0].data
-                #hdu_sim.close()
-                #sys.exit()
-                iraf.imcopy("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/full_field_with_sky_galaxies_"+str(i)+"_distorted.fits[0]","/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/sim_flt_"+str(i)+".fits[SCI,1,overwrite]")
-                
-        
-        #sys.exit()
-        #Drizzle
-        hdu_sim[1].data=hdu_new[0].data
-hdu_sim=fits.open("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/sim_flt_1.fits","update")
 
-hdu_sim[1].data=hdu_new[0].data
 
-hdu_sim
-Out[522]: [<astropy.io.fits.hdu.image.PrimaryHDU object at 0x1fd1c52d0>, <astropy.io.fits.hdu.image.ImageHDU object at 0x1f9259210>, <astropy.io.fits.hdu.image.ImageHDU object at 0x1fc155290>, <astropy.io.fits.hdu.image.ImageHDU object at 0x20ef07390>, <astropy.io.fits.hdu.image.ImageHDU object at 0x1835dd790>, <astropy.io.fits.hdu.image.ImageHDU object at 0x1f964b650>, <astropy.io.fits.hdu.table.BinTableHDU object at 0x1f4abd210>]
 
-hdu_sim.close()
-        #iraf.delete("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/id6p01???_flt.fits")
-        #os.rename("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/sim_flt_1.fits","/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/id6p01xyq_flt.fits")
-        #os.rename("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/sim_flt_2.fits","/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/id6p01y0q_flt.fits")
-        #os.rename("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/sim_flt_3.fits","/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/id6p01y2q_flt.fits")
-        #os.rename("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/sim_flt_4.fits","/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/id6p01y4q_flt.fits")
-        
-        actual_driz=fits.open("/Users/rpeterson/FP/do_everything/UV105842F160W/UV105842F160W_drz.fits")[0].data
-        
-        x_dimension,y_dimension=actual_driz.shape[1],actual_driz.shape[0]
-        
-        flts_list=glob.glob("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/id6p01???_flt.fits")
-        #sys.exit()
-        #/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/full_field_with_sky_galaxies_noise2_4_distorted.fits
-        for i in range(1,5):
-            #hdu_sim=fits.open("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/sim_flt_"+str(i)+".fits","update")
-            hdu_1_new=fits.open("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/full_field_with_sky_galaxies_"+str(i)+"_distorted.fits")
-            #hdu_sim[1].data=hdu_1_new[0].data
-            #hdu_sim.close()
-            
-            hdu_old_name=flts_list[i-1]
-            hdu_old=fits.open(hdu_old_name)
-            #hdu_new[0].header["EXTVER"]=1
-            hdu_old[3].data=np.zeros(hdu_old[3].data.shape,dtype="int")
-            hdulist = fits.HDUList([hdu_old[0],fits.ImageHDU(hdu_1_new[0].data*1.0355,hdu_old[1].header,name="SCI"),hdu_old[3]])
-            hdulist.writeto("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/sim_flt_"+str(i)+"_new.fits")
-            print(fits.open("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/sim_flt_"+str(i)+"_new.fits").info())
-            print(hdu_old.info())
-            
-        #sys.exit()
-        
-        #TweakREG
-        #Run SExtractor 
-        config_file="/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/config.sex"
-        pos_list_file=open("pos.list","w")
-        astdriz_file=open("astdriz.list","w")
-        for i in range(1,5):
-            new_config_name="/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/config"+str(i)+".sex"
-            new_config_file=open(new_config_name,"w")
-            [new_config_file.write(line.replace("astrodrizzle","sim"+str(i))) for line in open(config_file,"r").readlines()]
-            new_config_file.close()
-            os.system("sex sim_flt_"+str(i)+"_new.fits -c config"+str(i)+".sex")
-            pos_list_file.write("sim_flt_"+str(i)+"_new.fits\n")
-            astdriz_file.write("sim_flt_"+str(i)+"_new.fits "+"sim"+str(i)+"_tabext1.cat\n")
-        pos_list_file.close()
-        astdriz_file.close()
-        tweakreg.TweakReg("@pos.list",catfile="astdriz.list",xcol=3,ycol=4,updatehdr="yes",
-                          wcsname="HILO",searchrad=2,fluxunits="mag",rfluxunits="mag",threshold=3,clean=True)
-        #sys.exit()
-        for i in range(1,5):
-            hdu_sim=fits.open("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/sim_flt_"+str(i)+"_new.fits","update")
-            image_for_mknoise="/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/full_field_with_sky_galaxies_"+str(i)+"_distorted.fits"
-            if image_to_sim_ext!=0:
-                iraf.mknoise(image_for_mknoise,output=image_for_mknoise.replace(".fits","_noise2.fits"), background=background2, gain=gain2, rdnoise=rdnoise2, poisson=poisson2, seed=seed2)
-            else:
-                iraf.mknoise(image_for_mknoise,output=image_for_mknoise.replace(".fits","_noise2.fits"), background=background2, gain=gain2, rdnoise=rdnoise2, poisson=poisson2, seed=seed2)
-            seed2=universal_seed*seed2
-            hdu_sim[1].data=fits.open(image_for_mknoise.replace(".fits","_noise2.fits"))[0].data
-            hdu_sim.close()
-            
-            #ind=ind+1
-            hdu_new=fits.open("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/full_field_with_sky_galaxies_"+str(i)+"_distorted_noise2.fits")
-            hdu_new_sim=fits.open("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/sim_flt_"+str(i)+"_new.fits")
-            hdu_old_name=flts_list[i-1]
-            hdu_old=fits.open(hdu_old_name)
-            hdu_new[0].header["EXTVER"]=1
-            hdu_old[3].data=np.zeros(hdu_old[3].data.shape,dtype="int")
-            hdu_new_sim[3].header["WCS_key"]="HILO"
-            hdu_new_sim[3].header["WCS_KEY"]="HILO"
-            for item in hdu_new_sim[3].header.keys():
-                if len(item)>0:
-                    print(item)
-                    hdu_old[0].header[item]=hdu_new_sim[3].header[item]
-                    hdu_old[3].header[item]=hdu_new_sim[3].header[item]
-                    hdu_new[0].header[item]=hdu_new_sim[3].header[item]
-            hdulist = fits.HDUList([hdu_old[0],fits.ImageHDU(hdu_new[0].data,hdu_new[0].header,name="SCI"),hdu_old[3],fits.BinTableHDU(hdu_new_sim[3].data,hdu_new_sim[3].header,"WCSCORR")])
-            hdulist.writeto("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/sim_flt_"+str(i)+"_new_new.fits")
-            print(fits.open("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/sim_flt_"+str(i)+"_new_new.fits").info())
-            print(hdu_old.info())
-            
-        seed2=universal_seed   
-        #JUST ADD NOISE AFTER
-        
-        #sys.exit()
-        FITS_rec([ ('OPUS', 1, 'O', '', 'id6p01y4q_w3m18525i', '', '',  150.25825241,  2.02019512,  557.,  557.,  -3.23250000e-05,  -1.74431000e-05,  -1.93362000e-05,   2.88303000e-05, 'RA---TAN', 'DEC--TAN',  0.,  0.,  0.,  0., 0, '', ''),
-   ('IDC_w3m18525i', 1, '', '', 'id6p01y4q_w3m18525i', 'NOMODEL', 'NOMODEL',  150.26074236,  2.01972041,  507.,  507.,  -3.22642068e-05,  -1.73714625e-05,  -1.93409820e-05,   2.87600398e-05, 'RA---TAN', 'DEC--TAN',  0.,  0.,  0.,  0., 0, '', ''),
-   ('', 0, '', '', '', '', '',    0.        ,  0.        ,    0.,    0.,   0.00000000e+00,   0.00000000e+00,   0.00000000e+00,   0.00000000e+00, '', '',  0.,  0.,  0.,  0., 0, '', ''),
-   ('', 0, '', '', '', '', '',    0.        ,  0.        ,    0.,    0.,   0.00000000e+00,   0.00000000e+00,   0.00000000e+00,   0.00000000e+00, '', '',  0.,  0.,  0.,  0., 0, '', ''),
-   ('', 0, '', '', '', '', '',    0.        ,  0.        ,    0.,    0.,   0.00000000e+00,   0.00000000e+00,   0.00000000e+00,   0.00000000e+00, '', '',  0.,  0.,  0.,  0., 0, '', ''),
-   ('', 0, '', '', '', '', '',    0.        ,  0.        ,    0.,    0.,   0.00000000e+00,   0.00000000e+00,   0.00000000e+00,   0.00000000e+00, '', '',  0.,  0.,  0.,  0., 0, '', ''),
-   ('', 0, '', '', '', '', '',    0.        ,  0.        ,    0.,    0.,   0.00000000e+00,   0.00000000e+00,   0.00000000e+00,   0.00000000e+00, '', '',  0.,  0.,  0.,  0., 0, '', '')], 
-  dtype=(numpy.record, [('WCS_ID', 'S40'), ('EXTVER', '>i2'), ('WCS_key', 'S1'), ('HDRNAME', 'S24'), ('SIPNAME', 'S24'), ('NPOLNAME', 'S24'), ('D2IMNAME', 'S24'), ('CRVAL1', '>f8'), ('CRVAL2', '>f8'), ('CRPIX1', '>f8'), ('CRPIX2', '>f8'), ('CD1_1', '>f8'), ('CD1_2', '>f8'), ('CD2_1', '>f8'), ('CD2_2', '>f8'), ('CTYPE1', 'S24'), ('CTYPE2', 'S24'), ('ORIENTAT', '>f8'), ('PA_V3', '>f8'), ('RMS_RA', '>f8'), ('RMS_Dec', '>f8'), ('NMatch', '>i4'), ('Catalog', 'S40'), ('DESCRIP', 'S128')]))
-        astrodrizzle.AstroDrizzle(input=glob.glob("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/sim_flt_?_new.fits"),output="full",skysub=False,
-                      wcskey="HILO",final_pixfrac=0.8,final_bits=576,driz_cr=False,median=False,blot=False,driz_separate=False,
-                      context=True,resetbits=0,clean=True,final_rot=0,final_scale=0.06,final_fillval=0)
-        #sys.exit()
-        final_large_image="/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/full_drz_sci.fits"
-        #mknoise2_file=fits.open(final_large_image,mode="update")
-        #mknoise2_file[0].data=np.nan_to_num(mknoise2_file[0].data)
-        #mknoise2_file[0].data[actual_driz==0]=0
-        #mknoise2_file.close()
-        outputs=glob.glob("/Users/rpeterson/FP/GALFIT_Simulations1/galfitsim1_astrodrizzled/full_drz_*.fits")
-        test_folder_outputs=glob.glob("/Users/rpeterson/FP/GALFIT_Simulations1/testing_my_simulated_drizzled_image/do-everything-with-blot/do-everything-with-blot_*.fits")
-        iraf.delete("/Users/rpeterson/FP/GALFIT_Simulations1/testing_my_simulated_drizzled_image/do-everything-with-blot/*.fits")
-        for obj in zip(outputs,test_folder_outputs):
-            os.system("cp "+obj[0]+" "+obj[1])
-        """
-        
-        
-        
-        
-        
-        
-        
-        
+
 
     ###Displays large field
     if display_large_field=="yes":
@@ -1467,34 +936,6 @@ hdu_sim.close()
         print("These childs were skipped "+str(skipped_ids))
     ###Now compares the entire image
     if compare_sky=="yes":
-        #Before I thought it might be a good idea to plot specific regions, but I think it overcomplicates matters
-        """
-        print("Reminder: if you change seed or number of sims, you should pick a new sky region")
-        if type(universal_seed)!=int:
-            print("Should have universal_seed fixed")
-        sky_coords=[real_sky_lowerx,real_sky_lowery,real_sky_upperx,real_sky_uppery,sim_sky_lowerx,sim_sky_lowery,sim_sky_upperx,sim_sky_uppery]
-        sky_coords_dict=dict()
-        sky_coords_names = "real_sky_lowerx,real_sky_lowery,real_sky_upperx,real_sky_uppery,sim_sky_lowerx,sim_sky_lowery,sim_sky_upperx,sim_sky_uppery".split(",")
-        if any(isinstance(x, type(None)) for x in sky_coords):
-            
-            os.system("ds9 "+image_to_sim+" -fits "+final_large_image+" -lock frame image &")
-            print("I recommend zooming to some region of sky which is shared by both, then you can just put same after picking the first")
-            j=1
-            for i in sky_coords_names:
-                val=raw_input("Pick a coordinate for "+str(i)+":")
-                sky_coords_dict[str(i)]=int(val)
-                if j==4:
-                    ask=raw_input("Make sim_sky_coords the same?(y/n):")
-                    if ask=="y":
-                        sim_sky_lowerx,sim_sky_lowery,sim_sky_upperx,sim_sky_uppery=sky_coords_dict["real_sky_lowerx"],sky_coords_dict["real_sky_lowery"],sky_coords_dict["real_sky_upperx"],sky_coords_dict["real_sky_uppery"]
-                        break
-                    else:
-                        print("not making same")
-                j=j+1
-        else:
-            sky_coords_dict["real_sky_lowerx"],sky_coords_dict["real_sky_lowery"],sky_coords_dict["real_sky_upperx"],sky_coords_dict["real_sky_uppery"]=real_sky_lowerx,real_sky_lowery,real_sky_upperx,real_sky_uppery
-            sky_coords_dict["sim_sky_lowerx"],sky_coords_dict["sim_sky_lowery"],sky_coords_dict["sim_sky_upperx"],sky_coords_dict["sim_sky_uppery"]=sim_sky_lowerx,sim_sky_lowery,sim_sky_upperx,sim_sky_uppery
-        """
         shape_sim=fits.open(final_large_image)[0].data.shape
         if image_to_sim!="default":
             sky_compare(final_large_image,1,1,shape_sim[0],shape_sim[1],ext1=0,
@@ -1503,11 +944,11 @@ hdu_sim.close()
         else:
             sky_compare(final_large_image,1,1,shape_sim[0],shape_sim[1],ext1=0,
                 close="no",fig_num=num,clean2="no",clean1="yes")
-            
-            
 
 
-                
+
+
+
 try:                ### I don't need this but other versions of python ide's might
     plt.show()
 except:
