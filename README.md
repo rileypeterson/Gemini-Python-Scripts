@@ -24,3 +24,5 @@ Sunday March 26, 2018 : [Commit](https://github.com/rileypeterson/Gemini-Python-
 print(cfg.get('Section1', 'monster', fallback='No such things as monsters.'))
     # -> "No such things as monsters."
 ```
+Sunday April 1st, 2018 : 
+Still working on issue #1. Unfortunately fallback is only available in 3.2+ :(
