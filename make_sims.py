@@ -7,8 +7,10 @@ import ast
 import sys
 import glob
 import ConfigParser
-
+import argparse
 import numpy as np
+import logging
+
 
 from astropy.io import fits
 from astropy.convolution import convolve_fft
@@ -16,20 +18,37 @@ import matplotlib.pyplot as plt
 import scipy.interpolate as interpolate
 # from drizzlepac import astrodrizzle, ablot #If you don't have these and don't want to drizzle you can comment them out
 # from stwcs import wcsutil
+#
+# os.chdir(login_cl_path)
+# from pyraf import iraf
+# iraf.artdata(_doprint=0)
+# os.chdir(base_folder)
 
-os.chdir(login_cl_path)
-from pyraf import iraf
-iraf.artdata(_doprint=0)
-os.chdir(base_folder)
+
+### Get config file location
+argparser = argparse.ArgumentParser()
+argparser.add_argument ("-c", "--config", dest='config_file', type=str)
+args = argparser.parse_args()
 
 
 
 ### Parse configuration file
 config = ConfigParser.ConfigParser()
-config.read('example.cfg')
+if os.path.exists(args.config_file):
+    # TODO try/except config parse
+    config.read(args.config_file)
+else:
+    raise ValueError("You need to supply a configuration file. \nUsage: $python make_sims.py -c /path/to/your/config.cfg")
+print(config.sections())
 
 
+logging.basicConfig(filename="", format='%(asctime)s - %(levelname)s:%(message)s', level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S')
+logging.debug('This message should appear on the console')
+logging.info('So should this')
+logging.warning('And this, too')
 
+
+sys.exit()
 
 ###Check for slash at end of base_folder
 if base_folder[-1]!="/":
