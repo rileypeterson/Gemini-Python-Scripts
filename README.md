@@ -30,3 +30,10 @@ Still working on issue #1. Unfortunately fallback is only available in 3.2+ :(
 Monday April 2nd, 2018 : [Commit](https://github.com/rileypeterson/Gemini-Python-Scripts/commit/92e17cbee351d4e3da148e49d2f1e080a8bffa10)
 - Continue working on [Issue #1](https://github.com/rileypeterson/Gemini-Python-Scripts/issues/1) on branch [update_sims](https://github.com/rileypeterson/Gemini-Python-Scripts/tree/update_sims)
 - Since they're closely related I have also started working on [Issue #2](https://github.com/rileypeterson/Gemini-Python-Scripts/issues/2)
+
+Friday/Saturday April 6th/7th, 2018 : [Commit](https://github.com/rileypeterson/Gemini-Python-Scripts/commit/911b8bd065346d8a95d52edc73e6031d955c914b)
+- Continue working on [Issue #1](https://github.com/rileypeterson/Gemini-Python-Scripts/issues/1) on branch [update_sims](https://github.com/rileypeterson/Gemini-Python-Scripts/tree/update_sims) and [Issue #2](https://github.com/rileypeterson/Gemini-Python-Scripts/issues/2)  
+- I'm about to begin refactoring make_feedmes
+- The configuration file is pretty much set up, it just needs to be connected to the variables within the script
+- Started some basic error catching/logging, but also want to eventually create a test file
+
