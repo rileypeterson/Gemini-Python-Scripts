@@ -10,7 +10,7 @@ import ConfigParser
 import argparse
 import numpy as np
 import logging
-
+from builtins import input
 
 from astropy.io import fits
 from astropy.convolution import convolve_fft
@@ -30,47 +30,155 @@ argparser = argparse.ArgumentParser()
 argparser.add_argument ("-c", "--config", dest='config_file', type=str)
 args = argparser.parse_args()
 
-
+if not args:
+    print("HERE")
+else:
+    print(args)
 
 ### Parse configuration file
-config = ConfigParser.ConfigParser()
+config = ConfigParser.ConfigParser(allow_no_value=True)
 if os.path.exists(args.config_file):
     # TODO try/except config parse
     config.read(args.config_file)
 else:
     raise ValueError("You need to supply a configuration file. \nUsage: $python make_sims.py -c /path/to/your/config.cfg")
-print(config.sections())
 
 
-logging.basicConfig(filename="", format='%(asctime)s - %(levelname)s:%(message)s', level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S')
+
+logging.basicConfig(filename="", format='%(asctime)s - %(levelname)s: %(message)s', level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S')
 logging.debug('This message should appear on the console')
 logging.info('So should this')
 logging.warning('And this, too')
 
 
-sys.exit()
+logging.info("Reading Configuration File")
+for section in config.sections():
+    for key,value in config.items(section):
+        print(section, key, value)
+# Logger.debug( "This is a Debug message." )
+# Logger.info ( "This is a Info  message." )
+# Logger.warn ( "This is a Warn  message." )
+# Logger.error( "This is a Error message." )
+# Logger.fatal( "This is a Fatal message." )
+def cfig(section,key,fallback=None,type_conv=str):
+    try:
+        if config.get(section,key) == "None":
+            return
+        return type_conv(config.get(section,key))
+    except ConfigParser.NoOptionError:
+        return fallback
+    except Exception as e:
+        logging.error("Uncaught Exception")
+        raise e
 
-###Check for slash at end of base_folder
-if base_folder[-1]!="/":
-    print("Adding a slash to the end of the base_folder")
-    base_folder=base_folder+"/"
-if os.path.exists(base_folder)==False:
+
+logging.info("Reading Tasks")
+tasks = config.items("Tasks")
+print(tasks)
+
+logging.info("Establishing Directory Structure")
+base_folder = cfig("File_Paths","base_folder")
+if not base_folder:
+    res = input("{0}No base_folder has been specified. Use current directory? {0}{1}{0}(y/n):"
+                .format("\n", os.getcwd()))
+    if res == "y":
+        base_folder = os.getcwd()
+    else:
+        raise ValueError("Please specify a base_folder in the configuration file [File_Paths]")
+if base_folder[-1] != "/":
+    # TODO if I make windows compatible that might need to be "\" instead
+    base_folder = base_folder + "/"
+if not os.path.exists(base_folder):
     os.mkdir(base_folder)
 
 
+seed = cfig("General_Params", "universal_seed", type_conv=int)
+
+### Making input feedme files
+initial_time = time.time()
+chain_val1_list=[]
+chain_val2_list=[]
+inputs_dict_file=base_folder+"inputs_dict.npy"
+k=1
+inputs_dict=dict()
+inputs_dict.update({"seed":universal_seed})
+if make_feedmes=='yes':
+    if make_interpolate_chain=="yes":
+        ### Make chain values 1 and the interpolation function for chain values 2
+
+        chain_array1=make_chain_vals1(chain_data1,chain_bins1,chain_seed1,chain_type1,chain_obj1,chain_column1,plt_fig=plt_fig)
+        if do_chain2=="yes":
+            chain_function2= make_chain_func2(chain_data1,chain_column1,chain_array1,chain_obj1,chain_data2,chain_type2,chain_obj2,chain_column2,plt_fig=plt_fig)
+
+    for i in range(1,number_of_sims+1):
+        if feedme_verbose=="yes":
+            print("Creating feedme for galaxy number "+str(i)+" elapsed time is:"+str(round((time.time()-initial_time),4)))
+        output_name = "galout_"+str(i)+"_model.fits"
+        file1=open(base_folder+"obj_sim_"+str(i)+".in","w")
+        top(file1,output_name,cutout_size,mag_zp)
+        input_x,input_y=cutout_size/2,cutout_size/2
+        if make_interpolate_chain=="yes":
+            chain_val1=chain_array1[i-1]
+            if do_chain2=="yes":
+                chain_val2=chain_function2(chain_val1) ###Remember this is circularized effective radius
+            else:
+                chain_obj2=None
+                chain_val2=None
+            if make_pairs=="no" or i<=number_of_sims/2:
+                input_mag,input_re,input_n,input_ar,input_pa=comp1_interp_chain(file1,cutout_size,mag_range,re_range,n_range,q_range,pa_range,chain_obj1,chain_val1,
+                               chain_obj2=chain_obj2,chain_val2=chain_val2,plt_scale_ratio=1)
+                inputs_dict[i]={"id":i,"x_cutout":input_x,"y_cutout":input_y,"mag":input_mag,"re":input_re,"n":input_n,"q":input_ar,"pa":input_pa}
+            if make_pairs=="yes" and i>number_of_sims/2:
+                mag_parent,re_parent,n_parent,q_parent=float(inputs_dict[k]["mag"]),float(inputs_dict[k]["re"]),float(inputs_dict[k]["n"]),float(inputs_dict[k]["q"])
+                ###Want the radius to factor in q. Convert from a_eff to r_eff
+                circ_re_parent=re_parent*q_parent**0.5
+                ###Get random q (axis ratio) value for child
+                q_child=random.uniform(q_range[0],q_range[1])
+                ###Find r_eff for child based on the ratio in pairs
+                circ_re_child=pairs[k-1][2]*circ_re_parent
+                #circ_re_child=pairs[k-1][2]*circ_re_parent*(q_parent**0.5)/(q_child**0.5)
+                ###Find child a_eff
+                re_child=circ_re_child/(q_child**0.5)
+                mag_child,n_child=-2.5*np.log10(pairs[k-1][1])+mag_parent,pairs[k-1][3]
+                #print(n_child)
+                if interp_re=="yes":
+                    circ_re_child=chain_function2(mag_child)
+                    re_child=circ_re_child/(q_child**0.5)
+                input_mag,input_re,input_n,input_ar,input_pa=comp1_interp_chain(file1,cutout_size,mag_range,re_range,n_range,q_range,pa_range,chain_obj1,chain_val1,
+                           chain_obj2,chain_val2,plt_scale_ratio=1,manual_overwrite="yes",mag_val=mag_child,re_val=re_child,n_val=n_child,q_val=q_child)
+                inputs_dict[i]={"id":i,"x_cutout":input_x,"y_cutout":input_y,"mag":input_mag,"re":input_re,"n":input_n,"q":input_ar,"pa":input_pa}
+                k=k+1
+        else:
+            mag_rand,re_rand,n_rand,q_rand,pa_rand=comp1(file1,cutout_size,mag_range,re_range,n_range,q_range,pa_range,plt_scale_ratio=1)
+            inputs_dict[i]={"id":i,"x_cutout":input_x,"y_cutout":input_y,"mag":mag_rand,"re":re_rand,"n":n_rand,"q":q_rand,"pa":pa_rand}
+        sky(file1,sky_range)
+
+        file1.close()
+    np.save(inputs_dict_file,inputs_dict)
+
+sys.exit()
+
+# ###Check for slash at end of base_folder
+# if base_folder[-1]!="/":
+#     print("Adding a slash to the end of the base_folder")
+#     base_folder=base_folder+"/"
+# if os.path.exists(base_folder)==False:
+#     os.mkdir(base_folder)
 
 
-plt_fig=1
-plt.close("all")
-np.random.seed(universal_seed)
-random.seed(universal_seed)
-chain_seed1 = universal_seed
-chain_seed2 = universal_seed
-seed1=universal_seed
-seed2=universal_seed
-seed = universal_seed
-if universal_seed is None:
-    seed,seed1,seed2="INDEF"
+
+
+# plt_fig=1
+# plt.close("all")
+# np.random.seed(universal_seed)
+# random.seed(universal_seed)
+# chain_seed1 = universal_seed
+# chain_seed2 = universal_seed
+# seed1=universal_seed
+# seed2=universal_seed
+# seed = universal_seed
+# if universal_seed is None:
+#     seed,seed1,seed2="INDEF"
 
 ### Definitions
 def run(source, reference, output=None, interp='poly5', sinscl=1.0, stepsize=10, clobber=False):
