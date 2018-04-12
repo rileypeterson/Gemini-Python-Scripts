@@ -25,17 +25,12 @@ import scipy.interpolate as interpolate
 # os.chdir(base_folder)
 
 
-### Get config file location
+# Get config file location
 argparser = argparse.ArgumentParser()
 argparser.add_argument ("-c", "--config", dest='config_file', type=str)
 args = argparser.parse_args()
 
-if not args:
-    print("HERE")
-else:
-    print(args)
-
-### Parse configuration file
+# Parse configuration file
 config = ConfigParser.ConfigParser(allow_no_value=True)
 if os.path.exists(args.config_file):
     # TODO try/except config parse
@@ -43,23 +38,32 @@ if os.path.exists(args.config_file):
 else:
     raise ValueError("You need to supply a configuration file. \nUsage: $python make_sims.py -c /path/to/your/config.cfg")
 
+# create logger
+logger = logging.getLogger()
+formatter = logging.Formatter("%(asctime)s - %(levelname)s:  %(message)s", datefmt='%Y-%m-%d %H:%M:%S')
+raw_format = logging.Formatter('%(message)s')
+logger.setLevel(logging.INFO)
 
+# log output to the console
+console_log = logging.StreamHandler()
+console_log.setFormatter(formatter)
+logger.addHandler(console_log)
 
-logging.basicConfig(filename="", format='%(asctime)s - %(levelname)s: %(message)s', level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S')
-logging.debug('This message should appear on the console')
-logging.info('So should this')
-logging.warning('And this, too')
+# log to file as well
+fileHandler = logging.FileHandler("{}.log".format("sim_log"))
+fileHandler.setFormatter(formatter)
+logger.addHandler(fileHandler)
 
-
-logging.info("Reading Configuration File")
+console_log.setFormatter(raw_format)
+logger.info("\n\n=========================================================\n\n\n")
+logger.info("Configuration Settings From: "+args.config_file+"\n")
 for section in config.sections():
+    logger.info("[{}]".format(section))
     for key,value in config.items(section):
-        print(section, key, value)
-# Logger.debug( "This is a Debug message." )
-# Logger.info ( "This is a Info  message." )
-# Logger.warn ( "This is a Warn  message." )
-# Logger.error( "This is a Error message." )
-# Logger.fatal( "This is a Fatal message." )
+        logger.info("{}: {}".format(key,value))
+logger.info("\n\n")
+logger.info("=========================================================\n\n\n")
+console_log.setFormatter(formatter)
 def cfig(section,key,fallback=None,type_conv=str):
     try:
         if config.get(section,key) == "None":
@@ -68,15 +72,14 @@ def cfig(section,key,fallback=None,type_conv=str):
     except ConfigParser.NoOptionError:
         return fallback
     except Exception as e:
-        logging.error("Uncaught Exception")
+        logger.error("Uncaught Exception")
         raise e
 
 
-logging.info("Reading Tasks")
+logger.info("Reading Tasks")
 tasks = config.items("Tasks")
-print(tasks)
 
-logging.info("Establishing Directory Structure")
+logger.info("Establishing Directory Structure")
 base_folder = cfig("File_Paths","base_folder")
 if not base_folder:
     res = input("{0}No base_folder has been specified. Use current directory? {0}{1}{0}(y/n):"
@@ -84,16 +87,19 @@ if not base_folder:
     if res == "y":
         base_folder = os.getcwd()
     else:
-        raise ValueError("Please specify a base_folder in the configuration file [File_Paths]")
+        raise ValueError("Please specify a base_folder in the configuration file under [File_Paths]")
 if base_folder[-1] != "/":
     # TODO if I make windows compatible that might need to be "\" instead
     base_folder = base_folder + "/"
 if not os.path.exists(base_folder):
+    logger.info("Base folder path does not exist. Creating it.")
     os.mkdir(base_folder)
 
 
 seed = cfig("General_Params", "universal_seed", type_conv=int)
 
+
+sys.exit()
 ### Making input feedme files
 initial_time = time.time()
 chain_val1_list=[]
