@@ -37,3 +37,6 @@ Friday/Saturday April 6th/7th, 2018 : [Commit](https://github.com/rileypeterson/
 - The configuration file is pretty much set up, it just needs to be connected to the variables within the script
 - Started some basic error catching/logging, but also want to eventually create a test file
 
+Wednesday April 11th, 2018 : [Commit](https://github.com/rileypeterson/Gemini-Python-Scripts/commit/58aa0d2225ba23fe610aeb59170cfe778a47e5ce)
+- Continue working on [Issue #1](https://github.com/rileypeterson/Gemini-Python-Scripts/issues/1) on branch [update_sims](https://github.com/rileypeterson/Gemini-Python-Scripts/tree/update_sims) and [Issue #2](https://github.com/rileypeterson/Gemini-Python-Scripts/issues/2)  
+- Created some additional logging features and realize I need to give some thought about how to organize this
