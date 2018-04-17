@@ -32,10 +32,10 @@ args = argparser.parse_args()
 
 # Parse configuration file
 config = ConfigParser.ConfigParser(allow_no_value=True)
-if os.path.exists(args.config_file):
-    # TODO try/except config parse
+try:
+    assert os.path.exists(args.config_file) == True
     config.read(args.config_file)
-else:
+except (AssertionError,TypeError):
     raise ValueError("You need to supply a configuration file. \nUsage: $python make_sims.py -c /path/to/your/config.cfg")
 
 # create logger
@@ -54,6 +54,7 @@ fileHandler = logging.FileHandler("{}.log".format("sim_log"))
 fileHandler.setFormatter(formatter)
 logger.addHandler(fileHandler)
 
+# log the config file to be used
 console_log.setFormatter(raw_format)
 logger.info("\n\n=========================================================\n\n\n")
 logger.info("Configuration Settings From: "+args.config_file+"\n")
@@ -64,6 +65,9 @@ for section in config.sections():
 logger.info("\n\n")
 logger.info("=========================================================\n\n\n")
 console_log.setFormatter(formatter)
+
+
+
 def cfig(section,key,fallback=None,type_conv=str):
     try:
         if config.get(section,key) == "None":
@@ -76,10 +80,7 @@ def cfig(section,key,fallback=None,type_conv=str):
         raise e
 
 
-logger.info("Reading Tasks")
-tasks = config.items("Tasks")
-
-logger.info("Establishing Directory Structure")
+logger.info("Establishing Base Folder")
 base_folder = cfig("File_Paths","base_folder")
 if not base_folder:
     res = input("{0}No base_folder has been specified. Use current directory? {0}{1}{0}(y/n):"
@@ -87,7 +88,8 @@ if not base_folder:
     if res == "y":
         base_folder = os.getcwd()
     else:
-        raise ValueError("Please specify a base_folder in the configuration file under [File_Paths]")
+        logger.error("Please specify a base_folder in the configuration file under [File_Paths]")
+        sys.exit()
 if base_folder[-1] != "/":
     # TODO if I make windows compatible that might need to be "\" instead
     base_folder = base_folder + "/"
@@ -95,10 +97,28 @@ if not os.path.exists(base_folder):
     logger.info("Base folder path does not exist. Creating it.")
     os.mkdir(base_folder)
 
-
 seed = cfig("General_Params", "universal_seed", type_conv=int)
 
+if cfig("Tasks","make_feedmes") == "yes":
+    logger.info("Making Feedme/Input Files")
+    input_file_folder = base_folder+"input_files/"
+    if not os.path.exists(input_file_folder):
+        os.mkdir(input_file_folder)
+    feedme_method = cfig("make_feedmes_params","make_feedmes_method")
+    if feedme_method == "interpolate":
+        logger.info("Interpolating values for simulated galaxies")
+        # TODO interpolate values here, write to fits and npy
 
+
+    elif feedme_method == "random":
+        logger.info("Selecting random parameters values for galaxies")
+        # TODO random values here, write to fits and npy
+
+    else:
+        logger.error("The method for creating feedmes:"
+                     " "+feedme_method+", is not recognized."
+                     " Valid options are random or interpolate.")
+        sys.exit()
 sys.exit()
 ### Making input feedme files
 initial_time = time.time()
