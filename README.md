@@ -43,3 +43,6 @@ Wednesday April 11th, 2018 : [Commit](https://github.com/rileypeterson/Gemini-Py
 
 Monday April 16th, 2018 : [Commit](https://github.com/rileypeterson/Gemini-Python-Scripts/commit/e22f9ac2c946831e6814098534f6b7733e826e4c)
 - Continue working on the same issues. Next will be to refactor make_feedmes.
+
+Monday April 22nd and 23rd, 2018 :  
+- Refactored the first interpolation. Slowly but surely...
