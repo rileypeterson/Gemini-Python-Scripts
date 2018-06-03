@@ -46,3 +46,27 @@ Monday April 16th, 2018 : [Commit](https://github.com/rileypeterson/Gemini-Pytho
 
 Sunday/Monday April 22nd/23rd, 2018 :  
 - Refactored the first interpolation. Slowly but surely...
+
+Saturday/Sunday June 2nd/3rd, 2018 : [Commit](https://github.com/rileypeterson/Gemini-Python-Scripts/commit/50e3d7d5b4cb15c78c17ab39b0d4297ff72ca08c)
+- Travelled to Norway recently and have been busy with work
+- Finished the second interpolation, refactored code so it *could* be imported (i.e. shove things into if __name__ == "__main__":), trying to keep the logger and config out of functions, pretty sure I'll have the interpolating/creating feedme files done by my next commit (or at least that's a goal to strive for), decided it probably makes a lot of sense to establish a class for galaxies: 
+```
+class Galaxy(object):
+    def __init__(self, x, y, mag, re, n, q, pa):
+        # ID number associated with
+        # Maybe some like file path (to feedme, fits, etc.)
+        # Cutout dimensions
+        # Galaxy position in cutout (x,y). Position in larger image.
+        # Could write methods to generate the sersic profile or add the cutout to a larger image
+        self.mag = mag
+        self.x = x
+        self.y = y
+        self.re = re
+        self.n = n
+        self.q = q
+        self.pa = pa
+        ...
+can use vars(Galaxy(...)) to capture these attributes and save them off into dictionaries or fits tables (probably)
+```
+
+        
