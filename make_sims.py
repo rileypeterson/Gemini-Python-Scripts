@@ -25,50 +25,11 @@ import scipy.interpolate as interpolate
 # os.chdir(base_folder)
 
 
-# Get config file location
-argparser = argparse.ArgumentParser()
-argparser.add_argument("-c", "--config", dest='config_file', type=str)
-args = argparser.parse_args()
-
-# Parse configuration file
-config = ConfigParser.ConfigParser(allow_no_value=True)
-try:
-    assert os.path.exists(args.config_file)
-    config.read(args.config_file)
-except (AssertionError, TypeError):
-    raise ValueError("You need to supply a configuration file."
-                     "\nUsage: $python make_sims.py -c /path/to/your/config.cfg")
-
-# Create logger
-logger = logging.getLogger()
-formatter = logging.Formatter("%(asctime)s - %(levelname)s:  %(message)s", datefmt='%Y-%m-%d %H:%M:%S')
-raw_format = logging.Formatter('%(message)s')
-logger.setLevel(logging.INFO)
-
-# Log output to the console
-console_log = logging.StreamHandler()
-console_log.setFormatter(formatter)
-logger.addHandler(console_log)
-
-# Log to file as well
-fileHandler = logging.FileHandler("{}.log".format("sim_log"))
-fileHandler.setFormatter(formatter)
-logger.addHandler(fileHandler)
-
-# Log the config file to be used
-console_log.setFormatter(raw_format)
-logger.info("\n\n=========================================================\n\n\n")
-logger.info("Configuration Settings From: %(file)s\n", args.config_file)
-for section in config.sections():
-    logger.info("[%(section)s]", section)
-    for key, value in config.items(section):
-        logger.info("%(key)s: %(value)s", (key, value))
-logger.info("\n\n=========================================================\n\n\n")
-console_log.setFormatter(formatter)
 
 
 ### Definitions
-def cfig(cfig_section, cfig_key, fallback=None, type_conv=str):
+def cfig(config, cfig_section, cfig_key,
+         fallback=None, type_conv=str):
     """
     Return the value associated with a given key within a given section.
     Convert to expected type. If not provided, use fallback.
@@ -78,18 +39,23 @@ def cfig(cfig_section, cfig_key, fallback=None, type_conv=str):
             return
         return type_conv(config.get(cfig_section, cfig_key))
     except ConfigParser.NoOptionError:
+        try:
+            logger.warning("Using fallback of %s for section:[%s] and option:%s", fallback, cfig_section, cfig_key)
+        except NameError:
+            # Assume the logger will be defined by if not, don't worry about it
+            pass
         return fallback
     except Exception as e:
-        logger.error("Uncaught Exception")
+        logger.error("Uncaught Exception", exc_info=True)
         raise e
 
 def first_interpolation(input_fits, fits_column, interp_param,
-                        bins=40, interp_type="linear", number_of_sims=0):
+                        bins=40, interp_type="linear", number_of_sims=10):
     """
     Approximate the probability distribution function (PDF) of the specified
     attribute (typically magnitude). Interpolate the PDF
     and sample from it with weighted probability.
-    Plot the result and return the array of interpolated values.
+    Plot the result (save) and return the array of interpolated values.
 
     Parameters
     ----------
@@ -104,6 +70,8 @@ def first_interpolation(input_fits, fits_column, interp_param,
         Number of bins used to interpolate the PDF
     interp_type : string, default "linear"
         Type of interpolation. Examples: "linear", "cubic"
+    number_of_sims : int, default 10
+        Number of simulated galaxies to make
 
     Returns
     -------
@@ -145,34 +113,118 @@ def first_interpolation(input_fits, fits_column, interp_param,
 
     return ret_array
 
-logger.info("Establishing Base Folder")
-base_folder = cfig("File_Paths","base_folder")
-if not base_folder:
-    res = input("{0}No base_folder has been specified. Use current directory? {0}{1}{0}(y/n):"
-                .format("\n", os.getcwd()))
-    if res == "y":
-        base_folder = os.getcwd()
-    else:
-        logger.error("Please specify a base_folder in the configuration file under [File_Paths]")
-        sys.exit()
-if base_folder[-1] != "/":
-    # TODO if I make windows compatible that might need to be "\" instead
-    base_folder = base_folder + "/"
-if not os.path.exists(base_folder):
-    logger.info("Base folder path does not exist. Creating it.")
-    os.mkdir(base_folder)
+def second_interpolation(input_fits, fits_column1, fits_column2, interp_param1, interp_param2, interp_type="linear", interp_data1=None, number_of_sims=None):
+    """
+    Return an interpolation function which approximates the relationship between
+    two values. For example, if interp_param1 is mag and interp_param2 is re
+    this function will interpolate the relationship between these two variables
+    and return a function takes a magnitude value as input and returns an interpolated
+    re value as output. Plots the result (save).
 
-seed = cfig("General_Params", "universal_seed", type_conv=int)
-np.random.seed(seed)
+    Parameters
+    ----------
+    input_fits : file path string
+        Path to .fits file generated by SExtractor which has
+        the column data_type which is to be interpolated.
+        It is assumed that data from the first interpolation and this interpolation
+        share the same fits file
+    fits_column1 : string
+        Name of the to be interpolated column (independent variable) within the .fits file
+    fits_column2 : string
+        Name of the to be interpolated column (dependent variable) within the .fits file
+    interp_param1 : string
+        Name of the parameter to be interpolated ('mag', 're', 'n', etc.) (independent variable)
+    interp_param2 : string
+        Name of the parameter to be interpolated ('mag', 're', 'n', etc.) (dependent variable)
+    interp_type : string, default "linear"
+        Type of interpolation. Examples: "linear", "cubic"
+
+    Returns
+    -------
+    An interpolated function which takes as input values representing fits_column1
+    and outputs values representing fits_column2
+
+    """
+
+    # Open both columns
+    data_column1 = fits.open(input_fits)[1].data[fits_column1]
+    data_column2 = fits.open(input_fits)[1].data[fits_column2]
+
+    # Create the interpolation function
+    interp_func2 = interpolate.interp1d(data_column1, data_column2, kind=interp_type, fill_value="extrapolate")
+
+    # Make plots to demonstrate strength of interpolation/correlation
+    x_samples = np.linspace(np.min(data_column1),np.max(data_column1),100000)
+    plt.plot(x_samples, interp_func2(x_samples),color='g',alpha=0.5,label="interpolated function",zorder=1)
+    plt.scatter(data_column1, data_column2, label="original data",alpha=0.5,zorder=2, color='b')
+
+    # Plot how the results from the first interpolation look when used as input into this function
+    if interp_data1 and number_of_sims:
+        plt.scatter(interp_data1, interp_func2(interp_data1), label="simulated data sample size "+str(number_of_sims), alpha=0.5, zorder=3, color='r')
+    plt.legend(loc="upper right")
+    plt.xlabel("{} ({})".format(fits_column1, interp_param1))
+    plt.ylabel("{} ({})".format(fits_column2, interp_param2))
+    plt.title("Second Interpolation Results")
+
+    return interp_func2
 
 
-### Start tasks
-if cfig("Tasks","make_feedmes") == "yes":
+
+class Galaxy(object):
+    def __init__(self, x, y, mag, re, n, q, pa):
+        self.mag = mag
+        self.x = x
+        self.y = y
+        self.re = re
+        self.n = n
+        self.q = q
+        self.pa = pa
+
+def make_input_files(log=None):
+    feedme_method = cfig(config, "make_feedmes_params","make_feedmes_method")
+    if feedme_method == "interpolate":
+        if log: logger.info("Interpolating values for simulated galaxies")
+        first_interpolation(cfig(config, "make_feedmes_params","input_fits1"),
+                            cfig(config, "make_feedmes_params","fits_column1"),
+                            cfig(config, "make_feedmes_params","interp_param1", fallback="mag"),
+                            bins=cfig(config, "make_feedmes_params","bins1", fallback=40),
+                            interp_type=cfig(config, "make_feedmes_params","interp_type1",fallback="linear"),
+                            number_of_sims=cfig(config, "General_Params","number_of_sims",fallback=10))
+    [make_feedmes_params]
+    # Make feedmes verbosely
+    make_feedmes_verbose : yes
+    # Method by which feedmes are created
+    # Options are **only** "random" or "interpolate"
+    make_feedmes_method : interpolate
+    # If "random":
+    mag_range : [16,28]
+    # in pixels
+    re_range : [2,40]
+    n_range : [0.5,5.5]
+    q_range : [0.05,1.0]
+    pa_range : [-90,90]
+
+
+    do_chain2 : yes
+    # If "do_chain2"
+    chain_type2 : linear
+    chain_plot2 : yes
+    chain_data2 : /Users/rpeterson/FP/GALFIT_Simulations1/SExtractor_missing_problem/actual_data_trial_field/UV105842F160W/UV105842F160W_phot/UV105842F160W_tab_all.fits
+    chain_column2 : FLUX_RADIUS
+    chain_obj2 : re
     logger.info("Making Feedme/Input Files")
     input_file_folder = base_folder+"input_files/"
     if not os.path.exists(input_file_folder):
         os.mkdir(input_file_folder)
     feedme_method = cfig("make_feedmes_params","make_feedmes_method")
+
+
+
+
+
+### Start tasks
+if cfig("Tasks","make_feedmes") == "yes":
+
     if feedme_method == "interpolate":
         logger.info("Interpolating values for simulated galaxies")
         # Sloppy
@@ -181,7 +233,7 @@ if cfig("Tasks","make_feedmes") == "yes":
                             cfig("make_feedmes_params","make_feedmes_method"),
                             cfig("make_feedmes_params","make_feedmes_method"),
                             cfig("make_feedmes_params","make_feedmes_method"),
-                            cfig("make_feedmes_params","make_feedmes_method"))
+                            cfig("make_feedmes_params","make_feedmes_method"),
                             bins=40, interp_type="linear", number_of_sims=0)
         # TODO interpolate values here, write to fits and npy
 
@@ -1214,3 +1266,99 @@ try:                ### I don't need this but other versions of python ide's mig
     plt.show()
 except:
     pass
+
+def main():
+    """ Parses the command line args, parses the config file, and sets up logging """
+    # Get config file location
+    argparser = argparse.ArgumentParser()
+    argparser.add_argument("-c", "--config", dest='config_file', type=str)
+    args = argparser.parse_args()
+
+    # Parse configuration file
+    config = ConfigParser.ConfigParser(allow_no_value=True)
+    try:
+        assert os.path.exists(args.config_file)
+        config.read(args.config_file)
+    except (AssertionError, TypeError):
+        raise ValueError("You need to supply a configuration file."
+                         "\nUsage: $python make_sims.py -c /path/to/your/config.cfg")
+
+    # Create logger
+    logger = logging.getLogger(__name__)
+    formatter = logging.Formatter("%(asctime)s - %(levelname)s:  %(message)s", datefmt='%Y-%m-%d %H:%M:%S')
+    raw_format = logging.Formatter('%(message)s')
+    logger.setLevel(logging.INFO)
+
+    # Log output to the console
+    console_log = logging.StreamHandler()
+    console_log.setFormatter(formatter)
+    logger.addHandler(console_log)
+
+    # Log to file as well
+    fileHandler = logging.FileHandler("{}.log".format("sim_log"))
+    fileHandler.setFormatter(formatter)
+    logger.addHandler(fileHandler)
+
+    # Log the config file to be used
+    console_log.setFormatter(raw_format)
+    logger.info("\n\n=========================================================\n\n\n")
+    logger.info("Configuration Settings From: %(file)s\n", args.config_file)
+    for section in config.sections():
+        logger.info("[%(section)s]", section)
+        for key, value in config.items(section):
+            logger.info("%(key)s: %(value)s", (key, value))
+    logger.info("\n\n=========================================================\n\n\n")
+    console_log.setFormatter(formatter)
+    logger.info("Establishing Base Folder")
+    base_folder = cfig("File_Paths","base_folder")
+    if not base_folder:
+        res = input("{0}No base_folder has been specified. Use current directory? {0}{1}{0}(y/n):"
+                    .format("\n", os.getcwd()))
+        if res == "y":
+            base_folder = os.getcwd()
+        else:
+            logger.error("Please specify a base_folder in the configuration file under [File_Paths]")
+            sys.exit()
+    if base_folder[-1] != "/":
+        # TODO if I make windows compatible that might need to be "\" instead
+        base_folder = base_folder + "/"
+    if not os.path.exists(base_folder):
+        logger.info("Base folder path does not exist. Creating it.")
+        os.mkdir(base_folder)
+    return config, logger
+
+if __name__ == '__main__':
+    config, logger = main()
+    if cfig(config, "Tasks", "make_feedmes") == "yes":
+        logger.info("Creating input/feedme files")
+        feedme_method = cfig(config, "make_feedmes_params","make_feedmes_method", fallback="random")
+        if feedme_method == "interpolate":
+            logger.info("Interpolating values for simulated galaxies")
+            # TODO place bounds on interpolation
+            interp_vals1 = first_interpolation(cfig(config, "make_feedmes_params","input_fits"),
+                                cfig(config, "make_feedmes_params","fits_column1", fallback="MAG_AUTO"),
+                                cfig(config, "make_feedmes_params","interp_param1", fallback="mag"),
+                                bins=cfig(config, "make_feedmes_params","bins1", fallback=40, type_conv=int),
+                                interp_type=cfig(config, "make_feedmes_params","interp_type1", fallback="linear"),
+                                number_of_sims=cfig(config, "General_Params","number_of_sims", fallback=10, type_conv=int))
+            if cfig(config, "make_feedmes_params","do_chain2") == "yes":
+                interp_func2 = second_interpolation(cfig(config, "make_feedmes_params","input_fits"),
+                                                    cfig(config, "make_feedmes_params","fits_column1", fallback="MAG_AUTO"),
+                                                    cfig(config, "make_feedmes_params","fits_column2"),
+                                                    cfig(config, "make_feedmes_params","interp_param1", fallback="mag"),
+                                                    cfig(config, "make_feedmes_params","interp_param2"),
+                                                    interp_type=cfig(config, "make_feedmes_params","interp_type", fallback="linear"),
+                                                    number_of_sims=cfig(config, "General_Params","number_of_sims", fallback=10, type_conv=int)
+                interp_vals2 = [interp_func2(val) for val in interp_vals1]
+            # TODO create generate_feedme function should default to random
+            # Consider generating galaxy classes to more easily access attributes
+        elif feedme_method == "random":
+
+
+        else:
+            logger.error("unrecognized feedme_method:%s", feedme_method)
+            raise ValueError("unrecognized feedme_method:{}".format(feedme_method))
+
+    # seed = cfig(config, "General_Params", "universal_seed", type_conv=int)
+    # np.random.seed(seed)
+    print(seed)
