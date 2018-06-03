@@ -49,7 +49,7 @@ Sunday/Monday April 22nd/23rd, 2018 :
 
 Saturday/Sunday June 2nd/3rd, 2018 : [Commit](https://github.com/rileypeterson/Gemini-Python-Scripts/commit/50e3d7d5b4cb15c78c17ab39b0d4297ff72ca08c)
 - Travelled to Norway recently and have been busy with work
-- Finished the second interpolation, refactored code so it *could* be imported (i.e. shove things into if __name__ == "__main__":), trying to keep the logger and config out of functions, pretty sure I'll have the interpolating/creating feedme files done by my next commit (or at least that's a goal to strive for), decided it probably makes a lot of sense to establish a class for galaxies: 
+- Finished the second interpolation, refactored code so it *could* be imported (i.e. shove things into if __name__ == "__main__":), trying to keep the logger and config out of functions, pretty sure I'll have the interpolating/creating feedme files done by my next commit (or at least that's a goal to strive for), decided it probably makes a lot of sense to establish a class for galaxies (galaxies are objects why not use OOP): 
 ```
 class Galaxy(object):
     def __init__(self, x, y, mag, re, n, q, pa):
