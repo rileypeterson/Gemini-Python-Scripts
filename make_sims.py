@@ -5,6 +5,7 @@ import subprocess
 import time
 import ast
 import sys
+import warnings
 import glob
 import ConfigParser
 import argparse
@@ -42,7 +43,7 @@ def cfig(config, cfig_section, cfig_key,
         try:
             logger.warning("Using fallback of %s for section:[%s] and option:%s", fallback, cfig_section, cfig_key)
         except NameError:
-            # Assume the logger will be defined by if not, don't worry about it
+            # Assume the logger will be defined but if not, don't worry about it
             pass
         return fallback
     except Exception as e:
@@ -168,17 +169,77 @@ def second_interpolation(input_fits, fits_column1, fits_column2, interp_param1, 
 
     return interp_func2
 
-
-
 class Galaxy(object):
-    def __init__(self, x, y, mag, re, n, q, pa):
+    def __init__(self, id, mag, re, n, q, pa):
+        self.id = id
         self.mag = mag
-        self.x = x
-        self.y = y
         self.re = re
         self.n = n
         self.q = q
         self.pa = pa
+        self.cutout_coords = (None, None)
+        self.field_coords = (None, None)
+        self.feedme_path = None
+        self.model_path = None
+        self.model_conv_path = None
+        self.model_conv_noise_path = None
+        self.creation_method = None
+
+def create_galaxies(number_of_sims, config=None, interp_dict={}, **kwargs):
+    """
+    Return an instance of a galaxy class.
+
+    Parameters
+    ----------
+    number_of_sims : int
+        Number of galaxies to make
+    interp_dict: dict
+        Dictionary where the keys are the parameter which has been interpolated (e.g. 'mag', 're', etc.)
+        and the value for that key is the list of interpolated values (e.g. [20.58, 21.22, 23.67], [5.68, 3.45, 10.56])
+    **kwargs: range values to select randomly from, tuple or list
+        accepted kwargs end in _range and take the form {param}_range
+        e.g. mag_range = [18, 26]
+        or re_range = (2, 40)
+        or pa_range = [-90, 90]
+    Note: If range for a particular parameter is not supplied it will try and read from the config_file
+    so if using this function outside of the context of this script, you should supply all ranges for the required params (mag, re, n, q, pa)
+
+    Usage
+    ----------
+    dict_of_galaxy_objects = create_galaxies(100, interp_dict={'mag':[20.58, 21.22, 23.67, ...]}, re_range=[2, 15], n_range=[0.5, 6], q_range=[0.01, 0.99], pa_range=[-90, 90])
+    # magnitude values are supplied/interpolated, other values are selected from ranges
+
+    Returns
+    -------
+    A dictionary where the keys are the galaxy id
+    and the value is the instance of that galaxy class
+
+    """
+    # Initialize the galaxy values
+    params = {'id':[i for i in range(1, number_of_sims+1)], 'mag':[], 're':[], 'n':[], 'q':[], 'pa':[]}
+    # Debated putting fallbacks here, but I think they are a good idea
+    fallbacks = {"mag_range":[16,28], "re_range":[2,40],"n_range":[0.5,6.5],"q_range":[0.05,0.95],"pa_range":[-90,90]}
+    # Update with interpolated values if available
+    params.update(interp_dict)
+    for key in params.keys():
+        if not params[key]:
+            # The list is still empty so we select randomly from a range
+            # Check if the range is provided in kwargs
+            range_string = "{param}_range".format(param=key)
+            if range_string in kwargs:
+                for i in range(number_of_sims):
+                    params[key].append(round(random.uniform(kwargs[range_string][0], kwargs[range_string][1]),4))
+            else:
+                # We use eval here because we expect the range arg to be of the form '[2,40]' -> [2,40]
+                if config:
+                    low, high = cfig(config, "make_feedmes_params", range_string, fallback=fallbacks[range_string], type_conv=eval)
+                else:
+                    warnings.warn("No config file supplied, using default fallbacks for unsupplied parameter ranges: {}".format({key:val for key,val in fallbacks.items() if key not in kwargs.keys()}))
+                    low, high = fallbacks[range_string]
+                for i in range(number_of_sims):
+                    params[key].append(round(random.uniform(low, high),4))
+    return {i:Galaxy(params['id'][i],params['mag'][i],params['re'][i],params['n'][i],params['q'][i],params['pa'][i]) for i in range(number_of_sims)}
+
 
 def make_input_files(log=None):
     feedme_method = cfig(config, "make_feedmes_params","make_feedmes_method")
@@ -1331,33 +1392,41 @@ if __name__ == '__main__':
     config, logger = main()
     if cfig(config, "Tasks", "make_feedmes") == "yes":
         logger.info("Creating input/feedme files")
-        feedme_method = cfig(config, "make_feedmes_params","make_feedmes_method", fallback="random")
+        s = "make_feedmes_params"
+        ns = cfig(config, "General_Params","number_of_sims", fallback=10, type_conv=int)
+        feedme_method = cfig(config, s,"make_feedmes_method", fallback="random")
+        interp_dict = dict()
         if feedme_method == "interpolate":
             logger.info("Interpolating values for simulated galaxies")
             # TODO place bounds on interpolation
-            interp_vals1 = first_interpolation(cfig(config, "make_feedmes_params","input_fits"),
-                                cfig(config, "make_feedmes_params","fits_column1", fallback="MAG_AUTO"),
-                                cfig(config, "make_feedmes_params","interp_param1", fallback="mag"),
-                                bins=cfig(config, "make_feedmes_params","bins1", fallback=40, type_conv=int),
-                                interp_type=cfig(config, "make_feedmes_params","interp_type1", fallback="linear"),
-                                number_of_sims=cfig(config, "General_Params","number_of_sims", fallback=10, type_conv=int))
-            if cfig(config, "make_feedmes_params","do_chain2") == "yes":
-                interp_func2 = second_interpolation(cfig(config, "make_feedmes_params","input_fits"),
-                                                    cfig(config, "make_feedmes_params","fits_column1", fallback="MAG_AUTO"),
-                                                    cfig(config, "make_feedmes_params","fits_column2"),
-                                                    cfig(config, "make_feedmes_params","interp_param1", fallback="mag"),
-                                                    cfig(config, "make_feedmes_params","interp_param2"),
-                                                    interp_type=cfig(config, "make_feedmes_params","interp_type", fallback="linear"),
-                                                    number_of_sims=cfig(config, "General_Params","number_of_sims", fallback=10, type_conv=int)
+            interp_vals1 = first_interpolation(cfig(config, s,"input_fits"),
+                                cfig(config, s,"fits_column1", fallback="MAG_AUTO"),
+                                cfig(config, s,"interp_param1", fallback="mag"),
+                                bins=cfig(config, s,"bins1", fallback=40, type_conv=int),
+                                interp_type=cfig(config, s,"interp_type1", fallback="linear"),
+                                number_of_sims=ns)
+            interp_dict.update({cfig(config, s,"interp_param1", fallback="mag"):interp_vals1})
+            if cfig(config, s,"do_chain2") == "yes":
+                interp_func2 = second_interpolation(cfig(config, s,"input_fits"),
+                                                    cfig(config, s,"fits_column1", fallback="MAG_AUTO"),
+                                                    cfig(config, s,"fits_column2"),
+                                                    cfig(config, s,"interp_param1", fallback="mag"),
+                                                    cfig(config, s,"interp_param2"),
+                                                    interp_type=cfig(config, s,"interp_type", fallback="linear"),
+                                                    number_of_sims=ns)
                 interp_vals2 = [interp_func2(val) for val in interp_vals1]
+                interp_dict.update({cfig(config, s,"interp_param2"):interp_vals2})
             # TODO create generate_feedme function should default to random
             # Consider generating galaxy classes to more easily access attributes
+            gals_dict = create_galaxies(ns, config=config, interp_dict)
         elif feedme_method == "random":
-
-
+            gals_dict = create_galaxies(ns, config=config, interp_dict)
         else:
-            logger.error("unrecognized feedme_method:%s", feedme_method)
-            raise ValueError("unrecognized feedme_method:{}".format(feedme_method))
+            logger.error("Unrecognized feedme_method:%s", feedme_method)
+            raise ValueError("Unrecognized feedme_method:{}".format(feedme_method))
+
+        # At this point galaxies have been created and we need to actually write their feedme/input files
+
 
     # seed = cfig(config, "General_Params", "universal_seed", type_conv=int)
     # np.random.seed(seed)
