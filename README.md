@@ -68,5 +68,7 @@ class Galaxy(object):
         ...
 can use vars(Galaxy(...)) to capture these attributes and save them off into dictionaries or fits tables (probably)
 ```
-
+Monday June 4th, 2018 : [Commit](https://github.com/rileypeterson/Gemini-Python-Scripts/commit/b907c65e64699a1316522a8c8b88a8b22970f39d)
+- I think the galaxy class was a great idea, I wrote a function which generates galaxies objects (uses interpolated values if supplied, otherwise random between the range).  
+- I think it'd be nice to not require the config file, so I'm trying to write functions that make it optional. It'd be nice to just run `python make_sims.py` and have it generate a small field of ~10 galaxies. I'll go back and do that at the end.
         
