@@ -73,5 +73,7 @@ Monday June 4th, 2018 : [Commit](https://github.com/rileypeterson/Gemini-Python-
 - I think it'd be nice to not require the config file, so I'm trying to write functions that make it optional. It'd be nice to just run `python make_sims.py` and have it generate a small field of ~10 galaxies. I'll go back and do that at the end.
 - Microsoft acquired github today, and it makes me nervous.
 
+Tuesday June 12th, 2018 : [Commit](https://github.com/rileypeterson/Gemini-Python-Scripts/commit/1a37b63d95fffefddf21a77dfc4a8db4e445372d)
+- Got the feedme/input files being created. Logging working as expected. Configuration file working as expected. Putting issue [#10](https://github.com/rileypeterson/Gemini-Python-Scripts/issues/10) on hold for now. Plots being generated as expected. Next is to run the feedmes (easy) and the convolutions.
 
         
