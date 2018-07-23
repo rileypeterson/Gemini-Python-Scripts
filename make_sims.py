@@ -1,6 +1,7 @@
 # pylint: disable=C0301
 ### Imports
 import random
+import ast
 import os
 import subprocess
 import time
@@ -97,13 +98,13 @@ def first_interpolation(input_fits, fits_column, interp_param,
 
     # Plot results
     global PLT_NUM; plt.figure(PLT_NUM); PLT_NUM += 1;
-    plt.hist(ret_array, bins=data_bins, alpha=0.5, normed=True,
+    plt.hist(ret_array, bins=data_bins, alpha=0.5, density=True,
              label="simulated data sample size "+str(number_of_sims),
              color="r", zorder=3)
     plt.plot(chain_sim_data[chain_sim_data.argsort()],
              interp_func(chain_sim_data)[chain_sim_data.argsort()]/np.diff(data_bins)[0],
              label="simulated data", color="g", zorder=1)
-    plt.hist(data_array, bins=data_bins, alpha=0.5, normed=True,
+    plt.hist(data_array, bins=data_bins, alpha=0.5, density=True,
              color='b', label="original data", zorder=2)
     plt.legend(loc="upper right")
     plt.xlabel(fits_column+" ({})".format(interp_param))
@@ -232,9 +233,8 @@ def create_galaxies(number_of_sims, config=None, interp_dict={}, **kwargs):
                 for i in range(number_of_sims):
                     params[key].append(round(random.uniform(kwargs[range_string][0], kwargs[range_string][1]),4))
             else:
-                # We use eval here because we expect the range arg to be of the form '[2,40]' -> [2,40]
                 if config:
-                    low, high = cfig(config, "make_feedmes_params", range_string, fallback=fallbacks[range_string], type_conv=eval)
+                    low, high = cfig(config, "make_feedmes_params", range_string, fallback=fallbacks[range_string], type_conv=ast.literal_eval)
                 else:
                     warnings.warn("No config file supplied, using default fallbacks for unsupplied parameter ranges: {}".format({key:val for key,val in fallbacks.items() if key not in kwargs.keys()}))
                     low, high = fallbacks[range_string]
@@ -421,7 +421,7 @@ def sky_compare(image1,x1,y1,x2,y2,ext1=0,image2=None,x1_2=None,y1_2=None,x2_2=N
         im1_mean,im1_std,im1_med=np.mean(im1_crop_array),np.std(im1_crop_array),np.median(im1_crop_array)
         range_sky=(im1_med-3*im1_std,im1_med+3*im1_std)
         plt.hist(im1_crop_array,label=name1+" data "+str(len(im1_crop_array))+" mean:"+str(im1_mean)+" std:"+str(im1_std)+" median:"+str(im1_med),
-                 alpha=0.5,bins=100,range=range_sky,normed=True)
+                 alpha=0.5,bins=100,range=range_sky,density=True)
         print(name1+" mean,stddev,median: "+str(im1_mean)+" "+str(im1_std)+" "+str(im1_med))
     if image2 is not None:
         im2_full_array=fits.open(image2,memmap=True)[ext2].data
@@ -434,7 +434,7 @@ def sky_compare(image1,x1,y1,x2,y2,ext1=0,image2=None,x1_2=None,y1_2=None,x2_2=N
             im2_mean,im2_std,im2_med=np.mean(im2_crop_array),np.std(im2_crop_array),np.median(im2_crop_array)
         range_sky=(im2_med-3*im2_std,im2_med+3*im2_std)
         plt.hist(im2_crop_array,label=image2.split("/")[-1]+" data "+str(len(im2_crop_array))+" mean:"+str(im2_mean)+" std:"+str(im2_std)+" median:"+str(im2_med),
-                 alpha=0.5,bins=100,range=range_sky,normed=True)
+                 alpha=0.5,bins=100,range=range_sky,density=True)
         print(name2+" mean,stddev,median: "+str(im2_mean)+" "+str(im2_std)+" "+str(im2_med))
         if clean2=="yes":
             im1_crop_array=im1_full_array[y1:y2,x1:x2].flat
@@ -442,7 +442,7 @@ def sky_compare(image1,x1,y1,x2,y2,ext1=0,image2=None,x1_2=None,y1_2=None,x2_2=N
             im1_crop_array=im1_crop_array[im1_crop_array<im2_med*1.66] #This is here to exclude bad pixels in the flts
             im1_mean,im1_std,im1_med=np.mean(im1_crop_array),np.std(im1_crop_array),np.median(im1_crop_array)
             plt.hist(im1_crop_array,label=name1+" data "+str(len(im1_crop_array))+" mean:"+str(im1_mean)+" std:"+str(im1_std)+" median:"+str(im1_med),
-                     alpha=0.5,bins=100,range=range_sky,normed=True)
+                     alpha=0.5,bins=100,range=range_sky,density=True)
             print(name1+" mean,stddev,median: "+str(im1_mean)+" "+str(im1_std)+" "+str(im1_med))
     plt.legend(loc="upper right")
     plt.xlabel("sky")
@@ -1095,8 +1095,9 @@ def main():
     console_log.setFormatter(raw_format)
     fileHandler.setFormatter(raw_format)
     logger.info("\n\n=========================================================\n\n\n")
+    logger.info("BEGIN MAKING SIMULATIONS\n")
     logger.info("Current working directory: %s\n", os.getcwd())
-    logger.info("Configuration Settings From: %s\n", args.config_file)
+    logger.info("Configuration Settings From %s:\n", args.config_file)
     for section in config.sections():
         logger.info("[%s]", section)
         for key, value in config.items(section):
@@ -1126,13 +1127,16 @@ def main():
 if __name__ == '__main__':
     print(PLT_NUM)
     config, logger, base_folder = main()
+    input_dir = base_folder + 'input_files/'
+    models_dir = base_folder + 'galaxy_models/'
+    convolve_dir = base_folder + 'convolved_models/'
     seed = cfig(config, "General_Params", "universal_seed", fallback=None, type_conv=int)
+    ns = cfig(config, "General_Params","number_of_sims", fallback=10, type_conv=int)
     np.random.seed(seed)
     random.seed(seed)
     if cfig(config, "Tasks", "make_feedmes") == "yes":
         logger.info("Creating input/feedme files")
         s = "make_feedmes_params"
-        ns = cfig(config, "General_Params","number_of_sims", fallback=10, type_conv=int)
         feedme_method = cfig(config, s,"make_feedmes_method", fallback="random")
         interp_dict = dict()
         if feedme_method == "interpolate":
@@ -1165,26 +1169,44 @@ if __name__ == '__main__':
             raise ValueError("Unrecognized feedme_method:{}".format(feedme_method))
 
         # At this point galaxies have been created and we need to actually write their feedme/input files
-        input_dir = make_folder(base_folder + 'input_files/')
-        output_dir = make_folder(base_folder + 'galaxy_models/')
+        make_folder(input_dir)
         mag_zp = cfig(config, "General_Params", "mag_zp", type_conv=float)
         cutout_size = cfig(config, "General_Params", "cutout_size", fallback=400, type_conv=int)
-        sky_range = cfig(config, "General_Params", "sky_range", fallback=[0, 0], type_conv=eval)
+        sky_range = cfig(config, "General_Params", "sky_range", fallback=[0, 0], type_conv=ast.literal_eval)
         for num, gal in gals_dict.items():
             logger.info("Writing input file for galaxy #%d", num)
-            file_obj = input_top(input_dir+'obj_sim_{}.in'.format(num), output_dir+'galout_model_{}.fits'.format(num), mag_zp, cutout_size=cutout_size)
+            file_obj = input_top(input_dir+'galfit_input_{}.in'.format(num), models_dir+'galfit_model_{}.fits'.format(num), mag_zp, cutout_size=cutout_size)
             comp1(file_obj, gal.mag, gal.re, gal.n, gal.q, gal.pa, cutout_size=cutout_size)
             sky(file_obj, sky_range)
         logger.info("Done writing input files")
-    plt.show()
-def last_two_quantile(row, q):
-    return pd.Series([row.iloc[:-1].quantile(q),row.quantile(q)])
+    # Run galfit on the feedme files to actually produce galaxy images
+    if cfig(config, "Tasks", "make_galaxies") == "yes":
+        make_folder(models_dir)
+        command = cfig(config, "File_Paths", "galfit_path")
+        for i in range(1,ns+1):
+            logger.info("Making output model for galaxy #%d", i)
+            name = input_dir+"galfit_input_"+str(i)+".in"
+            # Should maybe do this differently
+            # So we suppress GALFIT output from showing up in terminal
+            with open(os.devnull, 'w') as fp:
+                cmd = subprocess.Popen([command,name], stdout=fp)
+        logger.info("Done making output models")
+    # Convolve the created galaxies with a PSF image
+    if cfig(config, "Tasks", "convolve") == "yes":
+        psf_image = cfig(config, "File_Paths", "psf_image")
+        if psf_image:
+            make_folder(convolve_dir)
+            for i in range(1,ns+1):
+                logger.info("Making convolved model for galaxy #%d", i)
+                sim = fits.open(models_dir+"galfit_model_"+str(i)+".fits")
+                psf = fits.open(psf_image)
+                # TODO Change to boundary = wrap ???
+                new_image = convolve_fft(sim[0].data, psf[0].data, normalize_kernel=True) #You can also try boundary="wrap", this seems to be faster, but I'm not sure what the difference is
+                new_image = np.float32(new_image)
+                hdu = fits.PrimaryHDU(new_image)
+                hdu.writeto(convolve_dir+"convolved_model_output_"+str(i)+".fits")
+            logger.info("Done making convolved models")
+        else:
+            raise ValueError("You need to supply a psf_image under the File_Paths section of the config file.")
 
-df.groupby('A')['B'].apply(last_two_quantile, 0.5)
-Out[126]:
-A
-1  0    1.5
-   1    1.0
-2  0    1.5
-   1    1.0
-Name: B, dtype: float64
+    plt.show(block=False)

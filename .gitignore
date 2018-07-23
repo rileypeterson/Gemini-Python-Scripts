@@ -1,3 +1,5 @@
 pyraf/*
 Examples/example_2/
 *.log
+update_sims/atmpt_1/*/*.fits
+update_sims/atmpt_1/*/*.in
