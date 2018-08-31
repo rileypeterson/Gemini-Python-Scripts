@@ -242,6 +242,39 @@ def create_galaxies(number_of_sims, config=None, interp_dict={}, **kwargs):
                     params[key].append(round(random.uniform(low, high),4))
     return {i+1:Galaxy(params['id'][i],params['mag'][i],params['re'][i],params['n'][i],params['q'][i],params['pa'][i]) for i in range(number_of_sims)}
 
+
+
+def make_noise(input, output, background=0, gain=1, rdnoise=0, poisson=False, seed=None):
+    """
+    Create an output image with noise added in the same way as iraf's mknoise.
+
+    Parameters
+    ----------
+    input : str
+        Fits file which is to have noise added.
+    output: str
+        Output fits file with noise added.
+    background: int or float
+        "Background to add to images before computing Poisson noise." - from iraf.mknoise docs
+    gain: int or float
+        "Gain in electrons per data number. The gain is used for scaling the read noise parameter and in computing poisson noise." - from iraf.mknoise docs
+    rdnoise: int or float
+        "Gaussian read noise in electrons." - from iraf.mknoise docs
+    poisson: bool
+        "Add poisson noise? Note that any specified background is added to new or existing images before computing the Poisson noise." - from iraf.mknoise docs
+    seed: int
+        Random number seed. If None resort to random.getrandbits to create a random result for the noise.
+
+    Usage
+    ----------
+    make_noise('input.fits', 'input_with_noise.fits', background=0, gain=2.5, rdnoise=3.5, poisson=True, seed=42)
+    --> produces input_with_noise.fits
+
+    Returns
+    -------
+    Does not return anything.
+
+    """
 ### Making input feedme files
 # initial_time = time.time()
 # chain_val1_list=[]
@@ -1130,6 +1163,7 @@ if __name__ == '__main__':
     input_dir = base_folder + 'input_files/'
     models_dir = base_folder + 'galaxy_models/'
     convolve_dir = base_folder + 'convolved_models/'
+    noise_dir = base_folder + 'noise_models/'
     seed = cfig(config, "General_Params", "universal_seed", fallback=None, type_conv=int)
     ns = cfig(config, "General_Params","number_of_sims", fallback=10, type_conv=int)
     np.random.seed(seed)
@@ -1189,7 +1223,8 @@ if __name__ == '__main__':
             # Should maybe do this differently
             # So we suppress GALFIT output from showing up in terminal
             with open(os.devnull, 'w') as fp:
-                cmd = subprocess.Popen([command,name], stdout=fp)
+                # TODO: use subprocess.pool -- want this and convolution to be blocking but not single processes/threads
+                cmd = subprocess.call([command,name], stdout=fp)
         logger.info("Done making output models")
     # Convolve the created galaxies with a PSF image
     if cfig(config, "Tasks", "convolve") == "yes":
@@ -1204,9 +1239,50 @@ if __name__ == '__main__':
                 new_image = convolve_fft(sim[0].data, psf[0].data, normalize_kernel=True) #You can also try boundary="wrap", this seems to be faster, but I'm not sure what the difference is
                 new_image = np.float32(new_image)
                 hdu = fits.PrimaryHDU(new_image)
-                hdu.writeto(convolve_dir+"convolved_model_output_"+str(i)+".fits")
+                hdu.writeto(convolve_dir+"convolved_model_output_"+str(i)+".fits", overwrite=True)
             logger.info("Done making convolved models")
         else:
             raise ValueError("You need to supply a psf_image under the File_Paths section of the config file.")
+
+    # Add noise to cutouts
+    ###Make noise for individual cutouts
+    if mknoise_cutouts=='yes':
+        for i in range(1,number_of_sims+1):
+            try:
+                os.remove("galout_"+str(i)+"_model_convolved_noised.fits")
+            except:
+                pass
+            try:
+                os.remove("galout_"+str(i)+"_model_noised.fits")
+            except:
+                pass
+            input_name = "galout_"+str(i)+"_model_convolved.fits"
+            iraf.cd(base_folder)
+            if convolve=="yes":
+                iraf.mknoise(input_name,output="galout_"+str(i)+"_model_convolved_noised.fits",background=background,gain=gain,rdnoise=rdnoise,poisson=poisson,seed=seed)
+            else:
+                input_name = "galout_"+str(i)+"_model.fits"
+                iraf.mknoise(input_name,output="galout_"+str(i)+"_model_noised.fits",background=background,gain=gain,rdnoise=rdnoise,poisson=poisson,seed=seed)
+            if mknoise_cutouts_verbose=="yes":
+                print("Adding noise for galaxy number "+str(i)+" elapsed time is:"+str(round((time.time()-initial_time),4)))
+    if cfig(config, "Tasks", "mknoise_cutouts") == "yes":
+        [mknoise_cutouts_params]
+        # Add noise to individual cutouts (useful if adding to an existing image)
+        mknoise_cutouts_verbose : yes
+        background : 0.136392
+        gain : 6529.37744
+        rdnoise : 4
+        poisson : yes
+        make_folder(noise_dir)
+        for i in range(1,ns+1):
+            logger.info("Making convolved model for galaxy #%d", i)
+            sim = fits.open(models_dir+"galfit_model_"+str(i)+".fits")
+            psf = fits.open(psf_image)
+            # TODO Change to boundary = wrap ???
+            new_image = convolve_fft(sim[0].data, psf[0].data, normalize_kernel=True) #You can also try boundary="wrap", this seems to be faster, but I'm not sure what the difference is
+            new_image = np.float32(new_image)
+            hdu = fits.PrimaryHDU(new_image)
+            hdu.writeto(convolve_dir+"convolved_model_output_"+str(i)+".fits", overwrite=True)
+        logger.info("Done adding noise to models")
 
     plt.show(block=False)
